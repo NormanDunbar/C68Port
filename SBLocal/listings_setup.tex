@@ -1,0 +1,41 @@
+% Contents of listings-setup.tex
+% For colours, see http://latexcolor.com/
+
+\usepackage{xcolor}
+\usepackage{beramono}
+
+% I have to define any colour I wish to use either here
+% or on the command line (for links etc) before it can be used by name
+% either below, or on the command line when specifying colours.
+
+\definecolor{Cool Grey}{rgb}{0.55,0.57,0.67}
+\definecolor{Blue}{rgb}{0,0,1}
+\definecolor{Lava}{rgb}{0.81,0.06,0.13}
+\definecolor{Ao}{rgb}{0,0.5,0}
+\definecolor{Cobalt}{rgb}{0,0.28,0.67}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    numbers=none,
+    frame=shadowbox,
+    rulesepcolor=\color{Cool Grey},
+    keywordstyle=\color{Blue}\bfseries,
+    stringstyle=\color{Lava},
+    commentstyle=\color{Ao}\bfseries,
+    identifierstyle=\color{Cobalt},
+    numberstyle=\footnotesize,
+    stepnumber=1,
+    numbersep=5pt,
+    backgroundcolor=\color[RGB]{248,248,248},
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2,
+    captionpos=b,
+    breaklines=true,
+    breakatwhitespace=true,
+    breakautoindent=true,
+    escapeinside={\%*}{*)},
+    linewidth=\textwidth,
+    basewidth=0.5em,
+}
