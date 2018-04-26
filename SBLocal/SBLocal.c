@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 
 #include "SBLocal.h"
 
@@ -362,7 +363,9 @@ void endCurrentScope() {
     }
 }
 
-/* Create a new local variable and add to the current scope. */
+/* Create a new local variable and add to the current scope.
+ * This is called directly for new local integers or floats
+ * but indirectly for strings and arrays. See SBLocal.h for details. */
 SBLOCAL newLocal(short variableType, char *variableName) {
     /* Allocate a new node for this variable. */
 
@@ -426,8 +429,8 @@ SBLOCAL newLocal(short variableType, char *variableName) {
 
 
 SBLOCAL newLocalString(char *variableName, unsigned short stringLength) {
-    /* Allocate a new SBLOCAL and some space for a string's contents */
 
+    /* Allocate a new SBLOCAL and then some space for a string's contents */
     /* Returns, or exits on error */
     SBLOCAL temp = newLocal(SBLOCAL_STRING, variableName);
     unsigned newSize = stringLength;
@@ -443,13 +446,137 @@ SBLOCAL newLocalString(char *variableName, unsigned short stringLength) {
      * Why 2? One for the terminator and one because SuperBASIC strings
      * count from index 1. */
     temp->variable.variableValue.arrayValue = createArray(newSize + 2);
-    if (!temp) {
+    if (!temp->variable.variableValue.arrayValue) {
         printf("newLocalString(): Out of memory.n");
         exit(1);
     }
 
     /* printf("newLocalString(): Created '%s' at %p with array at %p.\n",
               variableName, temp, temp->variable.variableValue.arrayValue); */
+    return temp;
+}
+
+
+/* Create a new SBLOCAL and some space for a multi-dimensional array.
+ * This will be called with a variable number of parameters to determine
+ * the various dimensions of the array, but given how C68 arrays work, the
+ * actual space will be allocated as if it was a huge single dimension of
+ * the required type.
+ *
+ * Also, because a SuperBASIC (non-string) array can index from 0 or 1
+ * then we have to add one on to each dimension. For example,
+ * LOCal A%(5) can index a%(0) through A%(5) which is 6 actual elements.
+ * C68 has to replicate this. This also applies to every dimension. */
+SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
+
+    /* Allocate a new SBLOCAL and then some space for a string's contents */
+    /* Returns, or exits on error */
+    SBLOCAL temp = newLocal(variableType, variableName);
+    unsigned totalSize = 0;         /* Total bytes required. */
+    unsigned extraCapacity = 1;     /* Extra elements per dimension. */
+    short thisDimension = 0;        /* Size of this dimension. */
+    va_list args;                   /* Variable arguments. */
+    void *ptr;                      /* Pointer to initialise arrays. */
+    int x;                          /* Loop for initialisation. */
+
+    /* Get our byte multiplier for later memory allocation. */
+    switch (variableType) {
+        /* Integers are 2 bytes (shorts) normally. */
+        case SBLOCAL_INTEGER_ARRAY:
+            totalSize = SB_ARRAY_INTEGER_SIZE;
+            break;
+
+        /* Floats are 8 bytes, usually. */
+        case SBLOCAL_FLOAT_ARRAY:
+            totalSize = SB_ARRAY_FLOAT_SIZE;
+            break;
+
+        /* Strings need one extra plus a terminator, so two. */
+        case SBLOCAL_STRING_ARRAY:
+            totalSize = SB_ARRAY_CHAR_SIZE;
+            extraCapacity=2;
+            break;
+
+        default:
+            printf("newLocalArray(): Unrecognised array type. (%d)\n", variableType);
+            printf("newLocalArray(): Array creation ignored.");
+            return NULL;
+    }
+
+    /* Scan the variable arguments to calculate the total bytes required to
+     * allocate the array, and any extra elements required to emulate SuperBASIC. */
+    va_start(args, variableType);
+
+    do {
+        /* Although the arguments are 'short', those get promoted to
+         * 'int', so I have to go up in steps of int, not short. */
+        thisDimension = va_arg(args, int);
+
+        /* Any negative value ends the list. */
+        if (thisDimension < 0) {
+            break;
+        }
+
+        /* Add on the extra capacity required, per dimension. */
+        /* printf("newLocalArray(): thisDimension = %d, extraCapacity = %d.\n",
+                  thisDimension, extraCapacity); */
+        thisDimension += extraCapacity;
+
+        /* Accumulate the byte count for the array.
+         * Because we started with totalSize = the size of one element
+         * this code 'just works' and allocates the desired number of bytes. */
+        totalSize *= thisDimension;
+    } while (1);
+
+    /* Don't forget this bit! */
+    va_end(args);
+
+    /* printf("newLocalArray(): totalSize = %d.\n", totalSize); */
+
+    /* We now have the correct number of bytes required to allocate an array
+     * of the requested type and with enough extra elements to cater for any
+     * terminators etc to match the behaviour of SuperBASIC. */
+
+    /* Set the required (maximum) array length. This is in bytes not elements. */
+    temp->variable.maxLength = totalSize;
+
+    /* Allocate some RAM for the array. */
+    temp->variable.variableValue.arrayValue = createArray(totalSize);
+    if (!temp->variable.variableValue.arrayValue) {
+        printf("newLocalArray(): Out of memory.n");
+        exit(1);
+    }
+
+    /* We have to initialise FLOAT and INTEGER arrays to 0. */
+    /* Start with a pointer to the data area. */
+    ptr = temp->variable.variableValue.arrayValue;
+
+    /* Then work out how many elements we have. */
+    switch (variableType) {
+        case SBLOCAL_INTEGER_ARRAY:
+            for (x = 0; x < totalSize / SB_ARRAY_INTEGER_SIZE; x++) {
+                /* printf("init: x=%d, ptr=%p\n", x, ptr); */
+                *((SB_INTEGER *)ptr) = 0;
+                ptr += SB_ARRAY_INTEGER_SIZE;
+            }
+            break;
+
+        /* Floats are 8 bytes, usually. */
+        case SBLOCAL_FLOAT_ARRAY:
+            for (x = 0; x < totalSize / SB_ARRAY_FLOAT_SIZE; x++) {
+                printf("init: x=%d, ptr=%p\n", x, ptr);
+                *((SB_FLOAT *)ptr) = 123.456;
+                ptr += SB_ARRAY_FLOAT_SIZE;
+            }
+            break;
+    }
+
+    /*
+    printf("newLocalArray(): Created '%s' at %p with array at %p.\n",
+              variableName, temp, temp->variable.variableValue.arrayValue);
+    */
+
+    /* Finally, after all that, send the new SBLOCAL back to the caller. */
     return temp;
 }
 

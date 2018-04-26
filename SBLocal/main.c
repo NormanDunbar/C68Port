@@ -19,6 +19,16 @@ int main()
  void test_1() {
     SBLOCAL betty;      /* SBLocalVariableNode *betty in other words */
     SBLOCAL testString;
+    SBLOCAL testArrayInteger;
+    SBLOCAL testArrayInteger3;
+    SBLOCAL testArrayInteger5;
+    SBLOCAL testArrayFloat2;
+    SBLOCAL testArrayFloat4;
+    SB_INTEGER *i_ptr;
+    SB_FLOAT *f_ptr;
+    short x;
+    short y;
+    unsigned int offset;
 
     printf("test_1(): Entry\n");
 
@@ -48,7 +58,33 @@ int main()
     printf("test_1(): Betty is now %d.\n", GET_LOCAL_INTEGER("Betty")); /* getSBLocalVariable_i(betty)); */
     printf("test_1(): Test_String is now  '%s'\n", GET_LOCAL_STRING("test_string"));
 
+    /* Arrays - Integer */
+    printf("test_1(): Creating Integer arrays...\n");
+    testArrayInteger = LOCAL_ARRAY_INTEGER("testArrayInteger", 10);
+    //testArrayInteger3 = LOCAL_ARRAY_INTEGER3("testArrayInteger3", 5, 6, 5);
+    //testArrayInteger5 = LOCAL_ARRAY_INTEGER5("testArrayInteger5", 5, 6, 1, 2, 8);
 
+    /* Arrays - Float */
+
+    printf("test_1(): Creating Float arrays...\n");
+    testArrayFloat2 = LOCAL_ARRAY_FLOAT2("testArrayFloat", 2, 4);
+    //testArrayFloat4 = LOCAL_ARRAY_FLOAT4("testArrayFloat3", 5, 6, 5, 6);
+
+    /* Can we see values from the first and last elements? */
+    /* All of testArrayInteger so, index [0] to index [10] ... */
+    i_ptr = (SB_INTEGER *)testArrayInteger->variable.variableValue.arrayValue;
+    for (x = 0; x <= 10; x++) {
+        printf("test_1(): testArrayInteger[%d] = %d\n", x, i_ptr[x]);
+    }
+
+    /* All of testArrayFloat2 so, index [0][0] to index [2][4] ... */
+    f_ptr = (SB_FLOAT *)testArrayFloat2->variable.variableValue.arrayValue;
+    for (x = 0; x < 2; x++) {
+        for (y = 0; y <= 4; y++) {
+            offset = (x*5*SB_ARRAY_FLOAT_SIZE) + (y*SB_ARRAY_FLOAT_SIZE);
+            printf("test_1(): testArrayFloat2[%d][%d] (aka %d) = %03.3f\n", x, y, offset, f_ptr[offset]);
+        }
+    }
 
 endScope:       /* Single exit point from test_1(). */
 
@@ -122,8 +158,6 @@ endScope:       /* Single exit point from test_1(). */
         setSBLocalVariable_s(temp, "A new short value.");
         printf("\tCurrent Value is now '%s'\n", GET_LOCAL_STRING("test_string"));
     }
-
-
 
 
   endScope:

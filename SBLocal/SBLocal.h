@@ -11,6 +11,7 @@
 #define SBLOCAL_FLOAT_ARRAY 5
 #define SBLOCAL_STRING_ARRAY 6
 
+
 /* Used to translate the above into actual SuperBASIC types. */
 static char *sblocal_types[] = {
     "Undefined",                /* 0 */
@@ -21,6 +22,13 @@ static char *sblocal_types[] = {
     "Floating Point Array",     /* 5 */
     "String Array"              /* 6 */
 };
+
+
+/* These are used when allocating arrays. */
+#define SB_ARRAY_CHAR_SIZE sizeof(char)
+#define SB_ARRAY_FLOAT_SIZE sizeof(double)
+#define SB_ARRAY_INTEGER_SIZE sizeof(short)
+
 
 /* How big is the Local variable stack? If horrendously recursive calls
  * are made, this should be increased. It's only 32 bits per entry after all.
@@ -36,6 +44,15 @@ static char *sblocal_types[] = {
 /* How long will a string be, if no size is specified?
  * as in LOCal A$ etc. */
 #define SB_DEFAULT_STRING_LENGTH 100
+
+
+/* SuperBASIC variable types are converted to C68 variable types. It's
+ * best to use the following defines to be sure you have the correct
+ * type especially when dealing with pointers to SuperBASIC variables.
+ * Ask me how I know! */
+#define SB_FLOAT double
+#define SB_INTEGER short
+#define SB_CHAR char
 
 /* The following struct is how we hold details of a
  * SuperBASIC LOCal variable. */
@@ -85,6 +102,9 @@ SBLOCAL newLocal(short variableType, char *variableName);
 /* Create a new local string of a specific length. */
 SBLOCAL newLocalString(char *variableName, unsigned short stringLength);
 
+/* Create a new local array of a specific length. */
+SBLOCAL newLocalArray(char *variableName, short variableType, ...);
+
 
 /* Return a pointer to the most recent scope for a particular
  * local variable. */
@@ -102,11 +122,25 @@ char *getSBLocalVariableTypeName(SBLOCAL variable);
 #define LOCAL_FLOAT(v)   newLocal(SBLOCAL_FLOAT, (v))
 
 /* The rest are pointer based and have sizes attached. */
-#define LOCAL_STRING(v, s)  newLocalString((v), (s))
+#define LOCAL_STRING(v, s)        newLocalString((v), (s))
+
+/* Oh, how I wish we had ANSI compliance! (Variable parameter macros!) */
+#define LOCAL_ARRAY_INTEGER(v, d1) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), -1);
+#define LOCAL_ARRAY_INTEGER2(v, d1, d2) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), -1);
+#define LOCAL_ARRAY_INTEGER3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), -1);
+#define LOCAL_ARRAY_INTEGER4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), -1);
+#define LOCAL_ARRAY_INTEGER5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), (d5), -1);
+
+#define LOCAL_ARRAY_FLOAT(v, d1) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), -1);
+#define LOCAL_ARRAY_FLOAT2(v, d1, d2) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), -1);
+#define LOCAL_ARRAY_FLOAT3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), -1);
+#define LOCAL_ARRAY_FLOAT4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), -1);
+#define LOCAL_ARRAY_FLOAT5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), (d5), -1);
 
 
 /* This is probably useful too, or saves typing! */
 #define FIND_LOCAL(v) findSBLocalVariableByName((v))
+
 
 /* Setters and getters */
 #define SET_LOCAL_INTEGER(v, new) setSBLocalVariable_i(findSBLocalVariableByName((v)), (new))
