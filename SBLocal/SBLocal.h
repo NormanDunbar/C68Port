@@ -82,15 +82,15 @@ typedef struct SBLocalVariableNode {
 
 /* Retrieve the value for a particular Local Variable from the most
  * recent scope. */
-double getSBLocalVariable(SBLOCAL variable);
-short getSBLocalVariable_i(SBLOCAL variable);
-char *getSBLocalVariable_s(SBLOCAL variable);
+SB_FLOAT getSBLocalVariable(SBLOCAL variable);
+SB_INTEGER getSBLocalVariable_i(SBLOCAL variable);
+SB_CHAR *getSBLocalVariable_s(SBLOCAL variable);
 
 /* Change the value for a particular Local Variable in the most
  * recent scope. */
-void setSBLocalVariable(SBLOCAL variable, double newValue);
-void setSBLocalVariable_i(SBLOCAL variable, short newValue);
-void setSBLocalVariable_s(SBLOCAL variable, char *newValue);
+void setSBLocalVariable(SBLOCAL variable, SB_FLOAT newValue);
+void setSBLocalVariable_i(SBLOCAL variable, SB_INTEGER newValue);
+void setSBLocalVariable_s(SBLOCAL variable, SB_CHAR *newValue);
 
 /* Starts a new scope and returns the root pointer. */
 SBLOCAL beginScope();
@@ -120,6 +120,8 @@ short getSBLocalVariableType(SBLOCAL variable);
 /* Return a textual description of a LOCal variable type */
 char *getSBLocalVariableTypeName(SBLOCAL variable);
 
+/* Return an INTEGER array element */
+SB_INTEGER getArrayElement(SBLOCAL variable, ...);
 
 /* Some defines to make things a little easier, maybe! */
 #define LOCAL_INTEGER(v) newLocal(SBLOCAL_INTEGER, (v))
@@ -134,31 +136,31 @@ char *getSBLocalVariableTypeName(SBLOCAL variable);
  * above. If you need to make that 6, for example, you MUST add an extra definition
  * for LOCAL_ARRAY_INTEGER6 and so on below.
  */
-#define LOCAL_ARRAY_INTEGER(v, d1) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), -1);
-#define LOCAL_ARRAY_INTEGER2(v, d1, d2) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), -1);
-#define LOCAL_ARRAY_INTEGER3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), -1);
-#define LOCAL_ARRAY_INTEGER4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), -1);
-#define LOCAL_ARRAY_INTEGER5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), (d5), -1);
+#define LOCAL_ARRAY_INTEGER(v, d1) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), -1)
+#define LOCAL_ARRAY_INTEGER2(v, d1, d2) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), -1)
+#define LOCAL_ARRAY_INTEGER3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), -1)
+#define LOCAL_ARRAY_INTEGER4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), -1)
+#define LOCAL_ARRAY_INTEGER5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), (d5), -1)
 
-#define GET_INTEGER_ELEMENT(v, d1) getArrayElement(findSBLocalVariableByName((v)), (d1), -1));
-#define GET_INTEGER_ELEMENT2(v, d1, d2) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), -1));
-#define GET_INTEGER_ELEMENT3(v, d1, d2, d3) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), -1));
-#define GET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), -1));
-#define GET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), (d5), -1));
+#define GET_INTEGER_ELEMENT(v, d1) getArrayElement(findSBLocalVariableByName((v)), (d1), -1)
+#define GET_INTEGER_ELEMENT2(v, d1, d2) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), -1)
+#define GET_INTEGER_ELEMENT3(v, d1, d2, d3) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), -1)
+#define GET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), -1)
+#define GET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), (d5), -1)
 
 /*
-#define SET_INTEGER_ELEMENT(v, d1) setArrayElement((v), (d1), -1));
-#define SET_INTEGER_ELEMENT2(v, d1, d2) setArrayElement((v), (d1), (d2), -1));
-#define SET_INTEGER_ELEMENT3(v, d1, d2, d3) setArrayElement((v), (d1), (d2), (d3), -1));
-#define SET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) setArrayElement((v), (d1), (d2), (d3), (d4), -1));
-#define SET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) setArrayElement((v), (d1), (d2), (d3), (d4), (d5), -1));
+#define SET_INTEGER_ELEMENT(v, d1) setArrayElement((v), (d1), -1)
+#define SET_INTEGER_ELEMENT2(v, d1, d2) setArrayElement((v), (d1), (d2), -1)
+#define SET_INTEGER_ELEMENT3(v, d1, d2, d3) setArrayElement((v), (d1), (d2), (d3), -1)
+#define SET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) setArrayElement((v), (d1), (d2), (d3), (d4), -1)
+#define SET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) setArrayElement((v), (d1), (d2), (d3), (d4), (d5), -1)
 */
 
-#define LOCAL_ARRAY_FLOAT(v, d1) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), -1);
-#define LOCAL_ARRAY_FLOAT2(v, d1, d2) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), -1);
-#define LOCAL_ARRAY_FLOAT3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), -1);
-#define LOCAL_ARRAY_FLOAT4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), -1);
-#define LOCAL_ARRAY_FLOAT5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), (d5), -1);
+#define LOCAL_ARRAY_FLOAT(v, d1) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), -1)
+#define LOCAL_ARRAY_FLOAT2(v, d1, d2) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), -1)
+#define LOCAL_ARRAY_FLOAT3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), -1)
+#define LOCAL_ARRAY_FLOAT4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), -1)
+#define LOCAL_ARRAY_FLOAT5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), (d5), -1)
 
 
 /* This is probably useful too, or saves typing! */

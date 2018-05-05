@@ -229,7 +229,7 @@ static void deleteNode(SBLOCAL node) {
 
 /* Retrieve the FP value for a particular Local Variable from the most
  * recent scope. */
-double getSBLocalVariable(SBLOCAL variable) {
+SB_FLOAT getSBLocalVariable(SBLOCAL variable) {
     double result = 0.0;
 
     if (variable){
@@ -248,7 +248,7 @@ double getSBLocalVariable(SBLOCAL variable) {
 
 /* Retrieve the INTEGER value for a particular Local Variable from the most
  * recent scope. */
-short getSBLocalVariable_i(SBLOCAL variable) {
+SB_INTEGER getSBLocalVariable_i(SBLOCAL variable) {
     short result = 0;
 
     if (variable){
@@ -267,7 +267,7 @@ short getSBLocalVariable_i(SBLOCAL variable) {
 
 /* Retrieve the STRING value for a particular Local Variable from the most
  * recent scope. */
-char *getSBLocalVariable_s(SBLOCAL variable) {
+SB_CHAR *getSBLocalVariable_s(SBLOCAL variable) {
     char *result = NULL;
 
     if (variable){
@@ -287,7 +287,7 @@ char *getSBLocalVariable_s(SBLOCAL variable) {
 
 /* Change the FP value for a particular Local Variable in the most
  * recent scope. */
-void setSBLocalVariable(SBLOCAL variable, double newValue) {
+void setSBLocalVariable(SBLOCAL variable, SB_FLOAT newValue) {
      if (variable){
         if (variable->variable.variableType == SBLOCAL_FLOAT) {
             variable->variable.variableValue.floatValue = newValue;
@@ -301,7 +301,7 @@ void setSBLocalVariable(SBLOCAL variable, double newValue) {
 
 /* Change the INTEGER value for a particular Local Variable in the most
  * recent scope. */
-void setSBLocalVariable_i(SBLOCAL variable, short newValue) {
+void setSBLocalVariable_i(SBLOCAL variable, SB_INTEGER newValue) {
     if (variable){
         if (variable->variable.variableType == SBLOCAL_INTEGER) {
             variable->variable.variableValue.integerValue = newValue;
@@ -315,7 +315,7 @@ void setSBLocalVariable_i(SBLOCAL variable, short newValue) {
 
 /* Change the STRING value for a particular Local Variable in the most
  * recent scope. */
-void setSBLocalVariable_s(SBLOCAL variable, char *newValue) {
+void setSBLocalVariable_s(SBLOCAL variable, SB_CHAR *newValue) {
 
     char *temp;
 
