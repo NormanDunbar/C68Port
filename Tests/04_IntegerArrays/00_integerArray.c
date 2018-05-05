@@ -15,7 +15,7 @@ int main()
     printf("EXPECTED RESULTS:\n");
     printf("The address of the new scope to be printed, followed by\n");
     printf("the details of a single integer array, named 'testArray', the values\n");
-    printf("of the array (0 - 14 step 2) will then be displayed.\n\n");
+    printf("of the array (all zeros) will then be displayed.\n\n");
     test_1();
     printf("\nTest complete.\n\n");
 }
@@ -23,17 +23,10 @@ int main()
 /* Function to create a single new scope. */
  void test_1() {
     SBLOCAL variable;
-    int x;
 
     /* Create a new scope and save the address. */
     beginScope();
     variable = LOCAL_ARRAY_INTEGER("testArray", maxDim);
-
-    /* Set testArray[x] = x*2. */
-    for (x = 0; x <= maxDim; x++) {
-        /*SET_INTEGER_ELEMENT("testArray", x, x*2);*/
-        setArrayElement_i(variable, x*2, x, -1);
-    }
     
     /* Show details. */
     dumpScopeStack();
@@ -42,7 +35,6 @@ endScope:
     endCurrentScope();
  }
 
-#define SET_INTEGER_ELEMENT(v, d1, nv) setArrayElement_i(findSBLocalVariableByName((v)), (nv), (d1), -1)
  
 void dumpScopeStack() {
     /* List the addresses of all the known scopes. */

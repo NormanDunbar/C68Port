@@ -597,7 +597,7 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
         case SBLOCAL_INTEGER_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_INTEGER_SIZE; x++) {
                 /* printf("init: x=%d, ptr=%p\n", x, ptr); */
-                *((SB_INTEGER *)ptr) = 0;
+                *((SB_INTEGER *)ptr) = 123;
                 ptr += SB_ARRAY_INTEGER_SIZE;
             }
             break;
@@ -622,7 +622,7 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
 }
 
 /* Fetch an element from an Integer Array on any number of dimensions. */
-SB_INTEGER getArrayElement(SBLOCAL variable, ...) {
+SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
     va_list args;
     unsigned offset = 1;
     short thisDimension;
@@ -661,10 +661,54 @@ SB_INTEGER getArrayElement(SBLOCAL variable, ...) {
      * Fetch the array pointer from the variable, and manipulate it!
      */
     iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
-
-    return (*iPtr);
+    
+    return (*iPtr + offset);
 }
 
+
+/* Set an Integer Array element, on any number of dimensions. */
+void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
+    va_list args;
+    unsigned offset = 1;
+    short thisDimension;
+    SB_INTEGER *iPtr;
+
+    /* Do we actually have an integer array? */
+    if (variable->variable.variableType != SBLOCAL_INTEGER_ARRAY) {
+        printf("setArrayElement(): Variable '%s' is not an integer array.\n",
+               variable->variable.variableName);
+        return;
+    }
+
+    va_start(args, newValue);
+    while (1) {
+        /* Shorts get promoted to ints, hence the following. */
+        thisDimension = va_arg(args, int);
+
+        /* Done, if negative. */
+        if (thisDimension < 0) {
+            break;
+        }
+
+        offset *= thisDimension;
+    }
+
+    va_end(args);
+
+    /* Are we in range? */
+    if (offset > variable->variable.maxLength) {
+        printf("setArrayElement(): Index out of range.\n");
+        return;
+    }
+
+    /*
+     * We now have an offset representing the number of elements.
+     * Fetch the array pointer from the variable, and manipulate it!
+     */
+    iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
+
+    *(iPtr + offset) = newValue;
+}
 
 
 /* Return an integer description of a LOCal variable type */

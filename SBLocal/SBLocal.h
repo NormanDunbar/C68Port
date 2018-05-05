@@ -56,17 +56,34 @@ static char *sblocal_types[] = {
 #define SB_CHAR char
 
 /* The following struct is how we hold details of a
- * SuperBASIC LOCal variable. */
+ * SuperBASIC LOCal variable.
+ *
+ * NOTES:
+ *
+ * 1. The maxLength field holds the total size of the variable's value(s)
+ *    which will include additional elements for arrays to replicate the
+ *    behaviour in SuperBASIC.
+ *    EG. DIM a%(5) allows a$(0) through a%(5). We need one extra element
+ *    in C68 to replicate this.
+ *
+ * 2. arrayDimensions[] holds the number of elements asked for by the user
+ *    and does not include the extras added on to replicate SuperBASIC's
+ *    array handling behaviour.
+ *
+ * 3. arrayValue points at the actual string for a LOCal string, or, to a
+ *    chunk of allocated memory, maxLength bytes long, for array  types.
+ *    This obviously includes the extra elements required.
+ */
 typedef struct SBLocalVariable {
-    short variableType;         /* INTEGER, STRING, FLOAT */
+    short variableType;         /* INTEGER, STRING, FLOAT etc */
     char variableName[MAX_LOCAL_NAME_SIZE +1];  /* No comment! */
     union variableValue {       /* Union of possible values for this LOCal */
         short integerValue;     /* Used if it's an integer */
         double floatValue;      /* Guess! */
         void *arrayValue;       /* Strings, or any array types */
     } variableValue;
-    unsigned short maxLength;   /* For strings and arrays only */
-    short arrayDimensions[SB_ARRAY_MAX_DIMENSIONS- 1];  /* For local arrays */
+    unsigned short maxLength;   /* For strings and arrays only. Total size in bytes, inc extras. */
+    short arrayDimensions[SB_ARRAY_MAX_DIMENSIONS - 1];  /* For local arrays as per user's request. */
 } SBLocalVariable;
 
 /* The following struct is how we hold details of all
@@ -121,7 +138,13 @@ short getSBLocalVariableType(SBLOCAL variable);
 char *getSBLocalVariableTypeName(SBLOCAL variable);
 
 /* Return an INTEGER array element */
-SB_INTEGER getArrayElement(SBLOCAL variable, ...);
+SB_INTEGER getArrayElement_i(SBLOCAL variable, ...);
+
+/* Set an Integer Array element, on any number of dimensions. */
+void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...);
+
+
+
 
 /* Some defines to make things a little easier, maybe! */
 #define LOCAL_INTEGER(v) newLocal(SBLOCAL_INTEGER, (v))
@@ -142,19 +165,17 @@ SB_INTEGER getArrayElement(SBLOCAL variable, ...);
 #define LOCAL_ARRAY_INTEGER4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), -1)
 #define LOCAL_ARRAY_INTEGER5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), (d5), -1)
 
-#define GET_INTEGER_ELEMENT(v, d1) getArrayElement(findSBLocalVariableByName((v)), (d1), -1)
-#define GET_INTEGER_ELEMENT2(v, d1, d2) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), -1)
-#define GET_INTEGER_ELEMENT3(v, d1, d2, d3) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), -1)
-#define GET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), -1)
-#define GET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), (d5), -1)
+#define GET_INTEGER_ELEMENT(v, d1) getArrayElement_i(findSBLocalVariableByName((v)), (d1), -1)
+#define GET_INTEGER_ELEMENT2(v, d1, d2) getArrayElement_i(findSBLocalVariableByName((v)), (d1), (d2), -1)
+#define GET_INTEGER_ELEMENT3(v, d1, d2, d3) getArrayElement_i(findSBLocalVariableByName((v)), (d1), (d2), (d3), -1)
+#define GET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) getArrayElement_i(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), -1)
+#define GET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) getArrayElement_i(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), (d5), -1)
 
-/*
-#define SET_INTEGER_ELEMENT(v, d1) setArrayElement((v), (d1), -1)
-#define SET_INTEGER_ELEMENT2(v, d1, d2) setArrayElement((v), (d1), (d2), -1)
-#define SET_INTEGER_ELEMENT3(v, d1, d2, d3) setArrayElement((v), (d1), (d2), (d3), -1)
-#define SET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) setArrayElement((v), (d1), (d2), (d3), (d4), -1)
-#define SET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) setArrayElement((v), (d1), (d2), (d3), (d4), (d5), -1)
-*/
+#define SET_INTEGER_ELEMENT(v, d1, nv) setArrayElement_i(findSBLocalVariableByName((v)), (nv), (d1), -1)
+#define SET_INTEGER_ELEMENT2(v, d1, d2, nv) setArrayElement_i(findSBLocalVariableByName((v)), (nv), (d1), (d2), -1)
+#define SET_INTEGER_ELEMENT3(v, d1, d2, d3, nv) setArrayElement_i(findSBLocalVariableByName((v)), (nv), (d1), (d2), (d3), -1)
+#define SET_INTEGER_ELEMENT4(v, d1, d2, d3, d4, nv) setArrayElement_i(findSBLocalVariableByName((v)), (nv), (d1), (d2), (d3), (d4), -1)
+#define SET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5, nv) setArrayElement_i(findSBLocalVariableByName((v)), (nv), (d1), (d2), (d3), (d4), (d5), -1)
 
 #define LOCAL_ARRAY_FLOAT(v, d1) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), -1)
 #define LOCAL_ARRAY_FLOAT2(v, d1, d2) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), -1)
