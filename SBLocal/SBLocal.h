@@ -25,6 +25,7 @@ static char *sblocal_types[] = {
 
 
 /* These are used when allocating arrays. */
+#define SB_ARRAY_MAX_DIMENSIONS 5       /* LOCAL A%(n,n,n,n,n) maximum. */
 #define SB_ARRAY_CHAR_SIZE sizeof(char)
 #define SB_ARRAY_FLOAT_SIZE sizeof(double)
 #define SB_ARRAY_INTEGER_SIZE sizeof(short)
@@ -65,14 +66,15 @@ typedef struct SBLocalVariable {
         void *arrayValue;       /* Strings, or any array types */
     } variableValue;
     unsigned short maxLength;   /* For strings and arrays only */
+    short arrayDimensions[SB_ARRAY_MAX_DIMENSIONS- 1];  /* For local arrays */
 } SBLocalVariable;
 
 /* The following struct is how we hold details of all
  * SuperBASIC LOCal variables for a PROC or FN, in a
  * linked list. There will be one linked list per scope. */
 typedef struct SBLocalVariableNode {
-    struct SBLocalVariable variable;
     struct SBLocalVariableNode *next;
+    struct SBLocalVariable variable;
 } SBLocalVariableNode, *SBLOCAL;        /* Need to use this in proc headers below */
 
 
@@ -105,6 +107,8 @@ SBLOCAL newLocalString(char *variableName, unsigned short stringLength);
 /* Create a new local array of a specific length. */
 SBLOCAL newLocalArray(char *variableName, short variableType, ...);
 
+/* Fetch any scope's root node from the stack. */
+SBLOCAL peekSBLocalScopeLevel(unsigned short level);
 
 /* Return a pointer to the most recent scope for a particular
  * local variable. */
@@ -124,12 +128,31 @@ char *getSBLocalVariableTypeName(SBLOCAL variable);
 /* The rest are pointer based and have sizes attached. */
 #define LOCAL_STRING(v, s)        newLocalString((v), (s))
 
-/* Oh, how I wish we had ANSI compliance! (Variable parameter macros!) */
+/* Oh, how I wish we had ANSI compliance! (Variable parameter macros!)
+ *
+ * The following are defined as deep as SB_ARRAY_MAX_DIMENSIONS which is defined
+ * above. If you need to make that 6, for example, you MUST add an extra definition
+ * for LOCAL_ARRAY_INTEGER6 and so on below.
+ */
 #define LOCAL_ARRAY_INTEGER(v, d1) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), -1);
 #define LOCAL_ARRAY_INTEGER2(v, d1, d2) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), -1);
 #define LOCAL_ARRAY_INTEGER3(v, d1, d2, d3) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), -1);
 #define LOCAL_ARRAY_INTEGER4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), -1);
 #define LOCAL_ARRAY_INTEGER5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), (d3), (d4), (d5), -1);
+
+#define GET_INTEGER_ELEMENT(v, d1) getArrayElement(findSBLocalVariableByName((v)), (d1), -1));
+#define GET_INTEGER_ELEMENT2(v, d1, d2) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), -1));
+#define GET_INTEGER_ELEMENT3(v, d1, d2, d3) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), -1));
+#define GET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), -1));
+#define GET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), (d5), -1));
+
+/*
+#define SET_INTEGER_ELEMENT(v, d1) setArrayElement((v), (d1), -1));
+#define SET_INTEGER_ELEMENT2(v, d1, d2) setArrayElement((v), (d1), (d2), -1));
+#define SET_INTEGER_ELEMENT3(v, d1, d2, d3) setArrayElement((v), (d1), (d2), (d3), -1));
+#define SET_INTEGER_ELEMENT4(v, d1, d2, d3, d4) setArrayElement((v), (d1), (d2), (d3), (d4), -1));
+#define SET_INTEGER_ELEMENT5(v, d1, d2, d3, d4, d5) setArrayElement((v), (d1), (d2), (d3), (d4), (d5), -1));
+*/
 
 #define LOCAL_ARRAY_FLOAT(v, d1) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), -1);
 #define LOCAL_ARRAY_FLOAT2(v, d1, d2) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), -1);
@@ -153,6 +176,7 @@ char *getSBLocalVariableTypeName(SBLOCAL variable);
 
 #define LOCAL_TYPE(v)       getSBLocalVariableType(findSBLocalVariableByName((v)))
 #define LOCAL_TYPE_NAME(v)  getSBLocalVariableTypeName(findSBLocalVariableByName((v)))
+
 
 
 #endif /* __SBLOCALNODE_H__ */

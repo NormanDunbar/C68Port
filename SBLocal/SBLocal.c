@@ -99,6 +99,18 @@ static SBLOCAL peekSBLocalScope() {
     }
 }
 
+
+/* Fetch scope from the stack at the given level. 0 = oldest scope. */
+SBLOCAL peekSBLocalScopeLevel(unsigned short level) {
+    if (level > MAX_STACK_DEPTH) {
+        printf("peekSBLocalScopeLevel(): Level (%d) too deep.\n", level);
+    }
+
+    /* This returns NULL if we go deeper than first scope level. */
+    return SBLocalStack[level];
+}
+
+
 /* Return a pointer to the most recent scope for a particular
  * local variable. Scans backwards through the nested scopes
  * until we find it, or not. */
@@ -160,7 +172,7 @@ static SBLOCAL createNode() {
     return temp;
 }
 
-/* Internal helper routines to create arrays. Returns the array's address
+/* Internal helper routine to create arrays. Returns the array's address
  * or NULL if we are out of memory. */
 static void *createArray(unsigned short bytesRequired) {
 
@@ -175,9 +187,15 @@ static void *createArray(unsigned short bytesRequired) {
     temp = malloc((size_t)bytesRequired);
     if (!temp) {
         printf("createArray(): Out of memory\n");
+        return NULL;
     }
 
     /* printf("createArray(): Allocated %d bytes at address %p\n", bytesRequired, temp); */
+
+    /* NULL out the entire array of bytes. */
+    memset(temp, '\0', bytesRequired);
+
+    /* Return the array base address. */
     return temp;
 }
 
@@ -372,10 +390,12 @@ SBLOCAL newLocal(short variableType, char *variableName) {
     size_t nameSize = strlen(variableName);
     size_t copySize = nameSize;
     SBLOCAL root;
+    short dimn;
 
     /* printf("newLocal(): Creating new LOCal %s variable: '%s'\n",
            sblocal_types[variableType], variableName); */
 
+    /* If we can't create a node, bale out. */
     SBLOCAL temp = createNode();
     if (!temp) {
         printf("newLocal(): Out of memory.n");
@@ -419,6 +439,11 @@ SBLOCAL newLocal(short variableType, char *variableName) {
         default: printf("newLocal(): Unimplemented variable type for variable '%s'.\n", variableName);
     }
 
+    /* Initialise the array dimensions to -1. */
+    for (dimn = 0; dimn < SB_ARRAY_MAX_DIMENSIONS; dimn++) {
+        temp->variable.arrayDimensions[dimn] = -1;
+    }
+
     /* Add the new node to the current scope. */
     root = peekSBLocalScope();
     temp->next = root->next;
@@ -428,6 +453,10 @@ SBLOCAL newLocal(short variableType, char *variableName) {
 }
 
 
+/* Create a new local STRING variable and add to the current scope. Calls newLocal
+ * to get an allocation for the SBLOCAL struct and then allocates an additional
+ * space for the string contents.
+ */
 SBLOCAL newLocalString(char *variableName, unsigned short stringLength) {
 
     /* Allocate a new SBLOCAL and then some space for a string's contents */
@@ -472,12 +501,15 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     /* Allocate a new SBLOCAL and then some space for a string's contents */
     /* Returns, or exits on error */
     SBLOCAL temp = newLocal(variableType, variableName);
+
     unsigned totalSize = 0;         /* Total bytes required. */
     unsigned extraCapacity = 1;     /* Extra elements per dimension. */
     short thisDimension = 0;        /* Size of this dimension. */
     va_list args;                   /* Variable arguments. */
     void *ptr;                      /* Pointer to initialise arrays. */
     int x;                          /* Loop for initialisation. */
+    unsigned short dimn;            /* Index into the arrayDimensions table. */
+    void *baseAddress;              /* Base address of allocated RAM for the array. */
 
     /* Get our byte multiplier for later memory allocation. */
     switch (variableType) {
@@ -506,6 +538,7 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     /* Scan the variable arguments to calculate the total bytes required to
      * allocate the array, and any extra elements required to emulate SuperBASIC. */
     va_start(args, variableType);
+    dimn = 0;
 
     do {
         /* Although the arguments are 'short', those get promoted to
@@ -517,9 +550,13 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
             break;
         }
 
-        /* Add on the extra capacity required, per dimension. */
-        /* printf("newLocalArray(): thisDimension = %d, extraCapacity = %d.\n",
-                  thisDimension, extraCapacity); */
+        /* Update the arrayDimensions table with this requested dimension. */
+        temp->variable.arrayDimensions[dimn++] = thisDimension;
+
+        /* Add on the extra capacity required, per dimension. What this means is that
+         * while arrayDimensions[dimn] says how much the user asked for, we give an
+         * extra element or two for the variable type to allow complete emulation of
+         * SuperBASIC LOCal variables. */
         thisDimension += extraCapacity;
 
         /* Accumulate the byte count for the array.
@@ -541,11 +578,15 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     temp->variable.maxLength = totalSize;
 
     /* Allocate some RAM for the array. */
-    temp->variable.variableValue.arrayValue = createArray(totalSize);
-    if (!temp->variable.variableValue.arrayValue) {
+    baseAddress = createArray(totalSize);
+
+    if (!baseAddress) {
         printf("newLocalArray(): Out of memory.n");
         exit(1);
     }
+
+    /* All ok, store the base address. */
+    temp->variable.variableValue.arrayValue = baseAddress;
 
     /* We have to initialise FLOAT and INTEGER arrays to 0. */
     /* Start with a pointer to the data area. */
@@ -565,7 +606,7 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
         case SBLOCAL_FLOAT_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_FLOAT_SIZE; x++) {
                 printf("init: x=%d, ptr=%p\n", x, ptr);
-                *((SB_FLOAT *)ptr) = 123.456;
+                *((SB_FLOAT *)ptr) = 0.0;
                 ptr += SB_ARRAY_FLOAT_SIZE;
             }
             break;
@@ -579,6 +620,51 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     /* Finally, after all that, send the new SBLOCAL back to the caller. */
     return temp;
 }
+
+/* Fetch an element from an Integer Array on any number of dimensions. */
+SB_INTEGER getArrayElement(SBLOCAL variable, ...) {
+    va_list args;
+    unsigned offset = 1;
+    short thisDimension;
+    SB_INTEGER *iPtr;
+
+    /* Do we actually have an integer array? */
+    if (variable->variable.variableType != SBLOCAL_INTEGER_ARRAY) {
+        printf("getArrayElement(): Variable '%s' is not an integer array.\n",
+               variable->variable.variableName);
+        return 0;
+    }
+
+    va_start(args, variable);
+    while (1) {
+        /* Shorts get promoted to ints, hence the following. */
+        thisDimension = va_arg(args, int);
+
+        /* Done, if negative. */
+        if (thisDimension < 0) {
+            break;
+        }
+
+        offset *= thisDimension;
+    }
+
+    va_end(args);
+
+    /* Are we in range? */
+    if (offset > variable->variable.maxLength) {
+        printf("getArrayElement(): Index out of range.\n");
+        return 0;
+    }
+
+    /*
+     * We now have an offset representing the number of elements.
+     * Fetch the array pointer from the variable, and manipulate it!
+     */
+    iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
+
+    return (*iPtr);
+}
+
 
 
 /* Return an integer description of a LOCal variable type */
