@@ -190,7 +190,7 @@ static void *createArray(unsigned short bytesRequired) {
         return NULL;
     }
 
-    /* printf("createArray(): Allocated %d bytes at address %p\n", bytesRequired, temp); */
+    printf("createArray(): Allocated %d bytes at address %p\n", bytesRequired, temp);
 
     /* NULL out the entire array of bytes. */
     memset(temp, '\0', bytesRequired);
@@ -590,14 +590,14 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
 
     /* We have to initialise FLOAT and INTEGER arrays to 0. */
     /* Start with a pointer to the data area. */
-    ptr = temp->variable.variableValue.arrayValue;
+    ptr = baseAddress;
 
     /* Then work out how many elements we have. */
     switch (variableType) {
         case SBLOCAL_INTEGER_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_INTEGER_SIZE; x++) {
-                /* printf("init: x=%d, ptr=%p\n", x, ptr); */
-                *((SB_INTEGER *)ptr) = 123;
+                printf("init: x=%d, ptr=%p\n", x, ptr);
+                *((SB_INTEGER *)ptr) = 0;
                 ptr += SB_ARRAY_INTEGER_SIZE;
             }
             break;
@@ -612,10 +612,10 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
             break;
     }
 
-    /*
+    
     printf("newLocalArray(): Created '%s' at %p with array at %p.\n",
               variableName, temp, temp->variable.variableValue.arrayValue);
-    */
+    
 
     /* Finally, after all that, send the new SBLOCAL back to the caller. */
     return temp;
@@ -662,7 +662,7 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
      */
     iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
     
-    return (*iPtr + offset);
+    return (iPtr[offset]);
 }
 
 
@@ -706,8 +706,7 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
      * Fetch the array pointer from the variable, and manipulate it!
      */
     iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
-
-    *(iPtr + offset) = newValue;
+    iPtr[offset] = newValue;
 }
 
 
