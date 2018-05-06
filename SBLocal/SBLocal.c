@@ -190,7 +190,7 @@ static void *createArray(unsigned short bytesRequired) {
         return NULL;
     }
 
-    printf("createArray(): Allocated %d bytes at address %p\n", bytesRequired, temp);
+    /* printf("createArray(): Allocated %d bytes at address %p\n", bytesRequired, temp); */
 
     /* NULL out the entire array of bytes. */
     memset(temp, '\0', bytesRequired);
@@ -596,7 +596,7 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     switch (variableType) {
         case SBLOCAL_INTEGER_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_INTEGER_SIZE; x++) {
-                printf("init: x=%d, ptr=%p\n", x, ptr);
+                /* printf("init: x=%d, ptr=%p\n", x, ptr); */
                 *((SB_INTEGER *)ptr) = 0;
                 ptr += SB_ARRAY_INTEGER_SIZE;
             }
@@ -605,21 +605,22 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
         /* Floats are 8 bytes, usually. */
         case SBLOCAL_FLOAT_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_FLOAT_SIZE; x++) {
-                printf("init: x=%d, ptr=%p\n", x, ptr);
+                /* printf("init: x=%d, ptr=%p\n", x, ptr); */
                 *((SB_FLOAT *)ptr) = 0.0;
                 ptr += SB_ARRAY_FLOAT_SIZE;
             }
             break;
     }
 
-    
+    /*
     printf("newLocalArray(): Created '%s' at %p with array at %p.\n",
               variableName, temp, temp->variable.variableValue.arrayValue);
-    
+    */
 
     /* Finally, after all that, send the new SBLOCAL back to the caller. */
     return temp;
 }
+
 
 /* Fetch an element from an Integer Array on any number of dimensions. */
 SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
@@ -675,7 +676,96 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_INTEGER_ARRAY) {
-        printf("setArrayElement(): Variable '%s' is not an integer array.\n",
+        printf("setArrayElement_i(): Variable '%s' is not an integer array.\n",
+               variable->variable.variableName);
+        return;
+    }
+
+    va_start(args, newValue);
+    while (1) {
+        /* Shorts get promoted to ints, hence the following. */
+        thisDimension = va_arg(args, int);
+
+        /* Done, if negative. */
+        if (thisDimension < 0) {
+            break;
+        }
+
+        offset *= thisDimension;
+    }
+
+    va_end(args);
+
+    /* Are we in range? */
+    if (offset > variable->variable.maxLength) {
+        printf("setArrayElement_i(): Index out of range.\n");
+        return;
+    }
+
+    /*
+     * We now have an offset representing the number of elements.
+     * Fetch the array pointer from the variable, and manipulate it!
+     */
+    iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
+    iPtr[offset] = newValue;
+}
+
+
+/* Fetch an element from an Integer Array on any number of dimensions. */
+SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
+    va_list args;
+    unsigned offset = 1;
+    short thisDimension;
+    SB_FLOAT *iPtr;
+
+    /* Do we actually have an integer array? */
+    if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
+        printf("getArrayElement(): Variable '%s' is not an integer array.\n",
+               variable->variable.variableName);
+        return 0;
+    }
+
+    va_start(args, variable);
+    while (1) {
+        /* Shorts get promoted to ints, hence the following. */
+        thisDimension = va_arg(args, int);
+
+        /* Done, if negative. */
+        if (thisDimension < 0) {
+            break;
+        }
+
+        offset *= thisDimension;
+    }
+
+    va_end(args);
+
+    /* Are we in range? */
+    if (offset > variable->variable.maxLength) {
+        printf("getArrayElement(): Index out of range.\n");
+        return 0;
+    }
+
+    /*
+     * We now have an offset representing the number of elements.
+     * Fetch the array pointer from the variable, and manipulate it!
+     */
+    iPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
+    
+    return (iPtr[offset]);
+}
+
+
+/* Set a Floating Point Array element, on any number of dimensions. */
+void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...) {
+    va_list args;
+    unsigned offset = 1;
+    short thisDimension;
+    SB_FLOAT *iPtr;
+
+    /* Do we actually have an FP array? */
+    if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
+        printf("setArrayElement(): Variable '%s' is not a floating point array.\n",
                variable->variable.variableName);
         return;
     }
@@ -705,7 +795,7 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
      * We now have an offset representing the number of elements.
      * Fetch the array pointer from the variable, and manipulate it!
      */
-    iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
+    iPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
     iPtr[offset] = newValue;
 }
 

@@ -143,6 +143,11 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...);
 /* Set an Integer Array element, on any number of dimensions. */
 void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...);
 
+/* Return an FLOAT array element */
+SB_FLOAT getArrayElement(SBLOCAL variable, ...);
+
+/* Set an FLOAT Array element, on any number of dimensions. */
+void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...);
 
 
 
@@ -183,6 +188,17 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...);
 #define LOCAL_ARRAY_FLOAT4(v, d1, d2, d3, d4) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), -1)
 #define LOCAL_ARRAY_FLOAT5(v, d1, d2, d3, d4, d5) newLocalArray((v), SBLOCAL_FLOAT_ARRAY, (d1), (d2), (d3), (d4), (d5), -1)
 
+#define GET_FLOAT_ELEMENT(v, d1) getArrayElement(findSBLocalVariableByName((v)), (d1), -1)
+#define GET_FLOAT_ELEMENT2(v, d1, d2) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), -1)
+#define GET_FLOAT_ELEMENT3(v, d1, d2, d3) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), -1)
+#define GET_FLOAT_ELEMENT4(v, d1, d2, d3, d4) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), -1)
+#define GET_FLOAT_ELEMENT5(v, d1, d2, d3, d4, d5) getArrayElement(findSBLocalVariableByName((v)), (d1), (d2), (d3), (d4), (d5), -1)
+
+#define SET_FLOAT_ELEMENT(v, d1, nv) setArrayElement(findSBLocalVariableByName((v)), (nv), (d1), -1)
+#define SET_FLOAT_ELEMENT2(v, d1, d2, nv) setArrayElement(findSBLocalVariableByName((v)), (nv), (d1), (d2), -1)
+#define SET_FLOAT_ELEMENT3(v, d1, d2, d3, nv) setArrayElement(findSBLocalVariableByName((v)), (nv), (d1), (d2), (d3), -1)
+#define SET_FLOAT_ELEMENT4(v, d1, d2, d3, d4, nv) setArrayElement(findSBLocalVariableByName((v)), (nv), (d1), (d2), (d3), (d4), -1)
+#define SET_FLOAT_ELEMENT5(v, d1, d2, d3, d4, d5, nv) setArrayElement(findSBLocalVariableByName((v)), (nv), (d1), (d2), (d3), (d4), (d5), -1)
 
 /* This is probably useful too, or saves typing! */
 #define FIND_LOCAL(v) findSBLocalVariableByName((v))
