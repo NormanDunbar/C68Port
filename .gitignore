@@ -27,6 +27,7 @@
 */*.exe
 */*.out
 */*.app
+*/bin/*
 
 # CodeBlocks and Borland Compiler stuff
 *.ilc
