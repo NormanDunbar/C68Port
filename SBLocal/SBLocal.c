@@ -236,43 +236,57 @@ static void deleteNode(SBLOCAL node) {
  * va_start or va_end here. Ever!
  */
 static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
-    short thisDimension;
+    short thisDimension = 0;
     unsigned offset = 0;
-    short dimensionIndex = -1;
-    short dimensionMultiplier = 1;
+    short dimensionIndex = 0;
+    short elements[SB_ARRAY_MAX_DIMENSIONS - 1] = {0};
 
     
+    printf("getArrayOffset(ENTRY): args = %p\n", args);
     while (1) {
         /* Shorts get promoted to ints, hence the following. */
         thisDimension = va_arg(args, int);
 
         /* Done, if negative. */
         if (thisDimension < 0) {
-            printf("getArrayOffset(): Offset = %u\n", offset);
-            return offset;
+            break;
         }
-
-        /* If we created an array[3][5] we actually created array[4][6]. 
-         *
-         * The element of array[x][y] requested, comes in as [x][y][-1].
-         * ArrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
-         *
-         * The offset to element [x] is           x.
-         *
-         * The offset to element [x][y] is       (x * (arrayDimensions[1] +1)) + y.
-         *
-         * The offset to element [x][y][z] is    (x * (arrayDimensions[1] +1)) + 
-         *                                       (y * (arrayDimensions[2] +1)) + z.
-         *
-         * The offset to element [x][y][z][a] is (x * (arrayDimensions[1] +1)) + 
-         *                                       (y * (arrayDimensions[2] +1)) + .
-         *                                       (z * (arrayDimensions[3] +1)) + a.
-         */
-         
-        offset += (thisDimension * dimensionMultiplier);
-        dimensionIndex++; 
-        dimensionMultiplier = variable->variable.arrayDimensions[dimensionIndex] + 1;
+        
+        elements[dimensionIndex++] = thisDimension;        
     }
+
+    /* If we created an array[3][5] we actually created array[4][6]. 
+     *
+     * The element of array[x][y] requested, comes in as [x][y][-1].
+     * ArrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
+     *
+     * The offset to element [x] is           x.
+     *
+     * The offset to element [x][y] is       (x * (arrayDimensions[1] +1)) + y.
+     *
+     * The offset to element [x][y][z] is    (x * (arrayDimensions[1] +1)) + 
+     *                                       (y * (arrayDimensions[2] +1)) + z.
+     *
+     * The offset to element [x][y][z][a] is (x * (arrayDimensions[1] +1)) + 
+     *                                       (y * (arrayDimensions[2] +1)) + .
+     *                                       (z * (arrayDimensions[3] +1)) + a.
+     */
+     
+    for (thisDimension = 0; thisDimension < dimensionIndex; thisDimension++) {
+        
+        /* Shouldn't need this, but safety! */
+        if (variable->variable.arrayDimensions[dimensionIndex] == -1) {
+            break;
+        }
+        
+        /* TO DO - YOU ARE HERE */
+    }
+    
+    /*
+    offset += (thisDimension * dimensionMultiplier);
+    dimensionIndex++; 
+    dimensionMultiplier = variable->variable.arrayDimensions[dimensionIndex] + 1;
+    */
 }
 
 
@@ -859,5 +873,5 @@ char *getSBLocalVariableTypeName(SBLOCAL variable) {
 /* DELETE ME LATER */
 unsigned getOffset(SBLOCAL variable, short x, short y) {
     unsigned offset = getArrayOffset(variable, (va_list)&x);
-    printf("getOffset(%d, %d) = %u\n", x, y, offset);
+    printf("getOffset(%d, %d) = %d\n", x, y, offset);
 }
