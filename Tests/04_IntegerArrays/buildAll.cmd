@@ -6,3 +6,5 @@ for /f "tokens=1 delims=." %%f in ('dir /b *.c') do (
     echo Compiling %%f.c to %%f.exe ...
     buildTests %%f
 )
+
+pause
