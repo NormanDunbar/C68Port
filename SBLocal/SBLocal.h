@@ -218,4 +218,7 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...);
 
 
 
+/* DELETE ME LATER! */
+unsigned getOffset(SBLOCAL variable, short x, short y);
+
 #endif /* __SBLOCALNODE_H__ */

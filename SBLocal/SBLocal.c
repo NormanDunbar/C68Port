@@ -48,6 +48,9 @@ static void deleteNode(SBLOCAL node);
 
 static short max_sblocal_type = sizeof(sblocal_types)/sizeof(sblocal_types[0]) -1;
 
+/* Calculate the offset into an array of 'n' dimensions. */
+static unsigned getArrayOffset(SBLOCAL variable, va_list args);
+
 /*===================================================================PRIVATE */
 
 /* The stack used for LOCal scopes. As a new PROCedure or FuNction is
@@ -224,6 +227,54 @@ static void deleteNode(SBLOCAL node) {
         free(node);
     }
 }
+
+/* 
+ * Calculate the offset into an array on 'n' dimensions. We gat called
+ * from a couple of places specifically getArrayElement() and setArrayElement()
+ * functions.
+ * We get passed a pointer to the callers variable args, we do not call 
+ * va_start or va_end here. Ever!
+ */
+static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
+    short thisDimension;
+    unsigned offset = 0;
+    short dimensionIndex = -1;
+    short dimensionMultiplier = 1;
+
+    
+    while (1) {
+        /* Shorts get promoted to ints, hence the following. */
+        thisDimension = va_arg(args, int);
+
+        /* Done, if negative. */
+        if (thisDimension < 0) {
+            printf("getArrayOffset(): Offset = %u\n", offset);
+            return offset;
+        }
+
+        /* If we created an array[3][5] we actually created array[4][6]. 
+         *
+         * The element of array[x][y] requested, comes in as [x][y][-1].
+         * ArrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
+         *
+         * The offset to element [x] is           x.
+         *
+         * The offset to element [x][y] is       (x * (arrayDimensions[1] +1)) + y.
+         *
+         * The offset to element [x][y][z] is    (x * (arrayDimensions[1] +1)) + 
+         *                                       (y * (arrayDimensions[2] +1)) + z.
+         *
+         * The offset to element [x][y][z][a] is (x * (arrayDimensions[1] +1)) + 
+         *                                       (y * (arrayDimensions[2] +1)) + .
+         *                                       (z * (arrayDimensions[3] +1)) + a.
+         */
+         
+        offset += (thisDimension * dimensionMultiplier);
+        dimensionIndex++; 
+        dimensionMultiplier = variable->variable.arrayDimensions[dimensionIndex] + 1;
+    }
+}
+
 
 /*====================================================================PUBLIC */
 
@@ -625,8 +676,7 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
 /* Fetch an element from an Integer Array on any number of dimensions. */
 SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
     va_list args;
-    unsigned offset = 1;
-    short thisDimension;
+    unsigned offset = 0;
     SB_INTEGER *iPtr;
 
     /* Do we actually have an integer array? */
@@ -637,18 +687,7 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
     }
 
     va_start(args, variable);
-    while (1) {
-        /* Shorts get promoted to ints, hence the following. */
-        thisDimension = va_arg(args, int);
-
-        /* Done, if negative. */
-        if (thisDimension < 0) {
-            break;
-        }
-
-        offset *= thisDimension;
-    }
-
+    offset = getArrayOffset(variable, args);
     va_end(args);
 
     /* Are we in range? */
@@ -682,18 +721,7 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
     }
 
     va_start(args, newValue);
-    while (1) {
-        /* Shorts get promoted to ints, hence the following. */
-        thisDimension = va_arg(args, int);
-
-        /* Done, if negative. */
-        if (thisDimension < 0) {
-            break;
-        }
-
-        offset *= thisDimension;
-    }
-
+    offset = getArrayOffset(variable, args);
     va_end(args);
 
     /* Are we in range? */
@@ -824,4 +852,12 @@ char *getSBLocalVariableTypeName(SBLOCAL variable) {
         printf("getSBLocalVariableTypeName(): Unknown Local Variable.\n");
         return NULL;
     }
+}
+
+
+
+/* DELETE ME LATER */
+unsigned getOffset(SBLOCAL variable, short x, short y) {
+    unsigned offset = getArrayOffset(variable, (va_list)&x);
+    printf("getOffset(%d, %d) = %u\n", x, y, offset);
 }
