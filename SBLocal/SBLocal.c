@@ -240,7 +240,20 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
     unsigned offset = 0;
     short dimensionIndex = 0;
     short elements[SB_ARRAY_MAX_DIMENSIONS - 1] = {0};
+    
+    /* Some shortcuts - saves typing! */
+    short x = 0;
+    short y = 1;
+    short z = 2;
+    short a = 3;
+    short b = 4;
+    
+    short dimY = variable->variable.arrayDimensions[y] + 1;
+    short dimZ = variable->variable.arrayDimensions[z] + 1;
+    short dimA = variable->variable.arrayDimensions[a] + 1;
+    short dimB = variable->variable.arrayDimensions[b] + 1;
 
+    /* Extract the various dimensions, -1 ends the list. */
     while (1) {
         /* Shorts get promoted to ints, hence the following. */
         thisDimension = va_arg(args, int);
@@ -253,79 +266,65 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
         elements[dimensionIndex++] = thisDimension;        
     }
     
-
     /* If we created an array[3][5] we actually created array[4][6]. 
      *
      * The element of array[x][y] requested, comes in as [x][y][-1].
      * arrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
      *
-     * dimensionIndex = 1: WORKS FINE
-     * The offset to element [x] is           x.
+     * MIGHT HELP?
      *
-     * dimensionIndex = 2: WORKS FINE
-     * The offset to element [x][y] is       (x * (arrayDimensions[1] +1)) + y.
      *
-     * dimensionIndex = 3: NOT WORKING
-     * The offset to element [x][y][z] is    (x * (arrayDimensions[0] +1) * (arrayDimensions[1] +1)) + 
-     *                                       (y * (arrayDimensions[2] +1)) + z.
+     * 1. array[dimX]
+     *    1-D array index for array[x] = [x].
      *
-     * dimensionIndex = 4: NOT TESTED
-     * The offset to element [x][y][z][a] is (x * (arrayDimensions[1] +1)) + 
-     *                                       (y * (arrayDimensions[2] +1)) + 
-     *                                       (z * (arrayDimensions[3] +1)) + a.
+     * 2. array[dimX][dimY]
+     *    1-D array index for array[x][y] = [x*dimY +y].
      *
-     * dimensionIndex = 5: NOT TESTED
-     * The offset to element [x][y][z][a][b] is (x * (arrayDimensions[1] +1)) + 
-     *                                          (y * (arrayDimensions[2] +1)) + 
-     *                                          (z * (arrayDimensions[3] +1)) + 
-     *                                          (a * (arrayDimensions[4] +1)) + b. 
+     * 3. array[dimX][dimY][dimZ]
+     *    1-D array index for array[x][y][z] = [x*dimY*dimZ + y*dimZ + z].
+     *
+     * 4. array[dimX][dimY][dimZ][dimA]
+     *    1-D array index for array[x][y][z][a] = [x*dimY*dimZ*dimA + y*dimZ*dimA + z*dimA + a].
+     *
+     * 5. array[dimX][dimY][dimZ][dimA][dimB]
+     *    1-D array index for array[x][y][z][a][b] = [x*dimY*dimZ*dimA*dimB + y*dimZ*dimA*dimB + z*dimA*dumB + a*dimB +b].
      */
+     
      
     /* I tried to do this procedurally, but failed! :-( */
-    
-    /*
-     * double *A;
-     * size_t m;
-     * #define A(i,j) A[(i)*m + (j)];
-     *
-     * MIGHT HELP?
-     */
-     
-     
     switch (dimensionIndex) {    
         case 1: /* array[x] */
-                offset = elements[0];
+                offset = elements[x];
                 break;
                 
         case 2: /* array[x][y] */
-                offset = (elements[0] * (variable->variable.arrayDimensions[1] +1)) + 
-                          elements[1];
+                offset = elements[x] * dimY + elements[y];
                 break;
                 
         case 3: /* array[x][y][z] */
-                offset = (elements[0] * (variable->variable.arrayDimensions[0] +1) *
-                                        (variable->variable.arrayDimensions[1] +1)) + 
-                         (elements[1] * (variable->variable.arrayDimensions[2] +1)) +
-                          elements[2];
+                offset = elements[x] * dimY * dimZ + 
+                         elements[y] * dimZ +
+                         elements[z];
+                /* printf("Calculation: %d * %d * %d + %d * %d + %d = %d\n", elements[x], dimY, dimZ, elements[y], dimZ, elements[z], offset); */
                 break;
                 
         case 4: /* array[x][y][z][a] */
-                offset = (elements[0] * (variable->variable.arrayDimensions[1] +1)) + 
-                         (elements[1] * (variable->variable.arrayDimensions[2] +1)) +
-                         (elements[2] * (variable->variable.arrayDimensions[3] +1)) +
-                          elements[3];
+                offset = elements[x] * dimY * dimZ * dimA + 
+                         elements[y] * dimZ * dimA + 
+                         elements[z] * dimA + 
+                         elements[a];
                 break;
                 
         case 5: /* array[x][y][z][a][b] */
-                offset = (elements[0] * (variable->variable.arrayDimensions[1] +1)) + 
-                         (elements[1] * (variable->variable.arrayDimensions[2] +1)) +
-                         (elements[2] * (variable->variable.arrayDimensions[3] +1)) +
-                         (elements[3] * (variable->variable.arrayDimensions[4] +1)) +
-                          elements[4];
+                offset = elements[x] * 
+                         elements[y] * 
+                         elements[z] * 
+                         elements[a] * 
+                         elements[b];
                 break;
     }
 
-    printf("getArrayOffset(): %d, %d, %d, %d: Offset = %d\n ", elements[0], elements[1], elements[2], elements[3], elements[4],  offset);
+    /* printf("getArrayOffset(): returning %d\n", offset); */
     return offset;
     
 }
@@ -744,9 +743,10 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
     va_start(args, variable);
     offset = getArrayOffset(variable, args);
     va_end(args);
+    /*printf("getArrayElement_i(): Offset is %d\n", offset);*/
 
-    /* Are we in range? */
-    if (offset > variable->variable.maxLength) {
+    /* Are we in range? Convert bytes to integers. */
+    if (offset > variable->variable.maxLength / SB_ARRAY_INTEGER_SIZE) {
         printf("getArrayElement_i(): Index out of range.\n");
         return 0;
     }
@@ -778,9 +778,10 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
     va_start(args, newValue);
     offset = getArrayOffset(variable, args);
     va_end(args);
+    /*printf("setArrayElement_i(): Offset is %d\n", offset);*/
 
-    /* Are we in range? */
-    if (offset > variable->variable.maxLength) {
+    /* Are we in range? Convert bytes to integers. */
+    if (offset > variable->variable.maxLength / SB_ARRAY_INTEGER_SIZE) {
         printf("setArrayElement_i(): Index out of range.\n");
         return;
     }
@@ -811,9 +812,10 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
     va_start(args, variable);
     offset = getArrayOffset(variable, args);
     va_end(args);
+    /*printf("getArrayElement(): Offset is %d\n", offset);*/
 
-    /* Are we in range? */
-    if (offset > variable->variable.maxLength) {
+    /* Are we in range? Convert bytes to floats.*/
+    if (offset > variable->variable.maxLength / SB_ARRAY_FLOAT_SIZE) {
         printf("getArrayElement(): Index out of range.\n");
         return 0;
     }
@@ -845,9 +847,10 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...) {
     va_start(args, newValue);
     offset = getArrayOffset(variable, args);
     va_end(args);
+    /*printf("setArrayElement(): Offset is %d\n", offset);*/
 
-    /* Are we in range? */
-    if (offset > variable->variable.maxLength) {
+    /* Are we in range? Convert bytes to floats. */
+    if (offset > variable->variable.maxLength / SB_ARRAY_FLOAT_SIZE) {
         printf("setArrayElement(): Index out of range.\n");
         return;
     }
