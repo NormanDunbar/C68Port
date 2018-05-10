@@ -121,6 +121,7 @@ void dumpScopeStack() {
         }
         printf("\n");
     }
-
     printf("\n");
+    
+
  }
