@@ -241,8 +241,6 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
     short dimensionIndex = 0;
     short elements[SB_ARRAY_MAX_DIMENSIONS - 1] = {0};
 
-    
-    printf("getArrayOffset(ENTRY): args = %p\n", args);
     while (1) {
         /* Shorts get promoted to ints, hence the following. */
         thisDimension = va_arg(args, int);
@@ -254,39 +252,82 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
         
         elements[dimensionIndex++] = thisDimension;        
     }
+    
 
     /* If we created an array[3][5] we actually created array[4][6]. 
      *
      * The element of array[x][y] requested, comes in as [x][y][-1].
-     * ArrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
+     * arrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
      *
+     * dimensionIndex = 1: WORKS FINE
      * The offset to element [x] is           x.
      *
+     * dimensionIndex = 2: WORKS FINE
      * The offset to element [x][y] is       (x * (arrayDimensions[1] +1)) + y.
      *
-     * The offset to element [x][y][z] is    (x * (arrayDimensions[1] +1)) + 
+     * dimensionIndex = 3: NOT WORKING
+     * The offset to element [x][y][z] is    (x * (arrayDimensions[0] +1) * (arrayDimensions[1] +1)) + 
      *                                       (y * (arrayDimensions[2] +1)) + z.
      *
+     * dimensionIndex = 4: NOT TESTED
      * The offset to element [x][y][z][a] is (x * (arrayDimensions[1] +1)) + 
-     *                                       (y * (arrayDimensions[2] +1)) + .
+     *                                       (y * (arrayDimensions[2] +1)) + 
      *                                       (z * (arrayDimensions[3] +1)) + a.
+     *
+     * dimensionIndex = 5: NOT TESTED
+     * The offset to element [x][y][z][a][b] is (x * (arrayDimensions[1] +1)) + 
+     *                                          (y * (arrayDimensions[2] +1)) + 
+     *                                          (z * (arrayDimensions[3] +1)) + 
+     *                                          (a * (arrayDimensions[4] +1)) + b. 
      */
      
-    for (thisDimension = 0; thisDimension < dimensionIndex; thisDimension++) {
-        
-        /* Shouldn't need this, but safety! */
-        if (variable->variable.arrayDimensions[dimensionIndex] == -1) {
-            break;
-        }
-        
-        /* TO DO - YOU ARE HERE */
-    }
+    /* I tried to do this procedurally, but failed! :-( */
     
     /*
-    offset += (thisDimension * dimensionMultiplier);
-    dimensionIndex++; 
-    dimensionMultiplier = variable->variable.arrayDimensions[dimensionIndex] + 1;
-    */
+     * double *A;
+     * size_t m;
+     * #define A(i,j) A[(i)*m + (j)];
+     *
+     * MIGHT HELP?
+     */
+     
+     
+    switch (dimensionIndex) {    
+        case 1: /* array[x] */
+                offset = elements[0];
+                break;
+                
+        case 2: /* array[x][y] */
+                offset = (elements[0] * (variable->variable.arrayDimensions[1] +1)) + 
+                          elements[1];
+                break;
+                
+        case 3: /* array[x][y][z] */
+                offset = (elements[0] * (variable->variable.arrayDimensions[0] +1) *
+                                        (variable->variable.arrayDimensions[1] +1)) + 
+                         (elements[1] * (variable->variable.arrayDimensions[2] +1)) +
+                          elements[2];
+                break;
+                
+        case 4: /* array[x][y][z][a] */
+                offset = (elements[0] * (variable->variable.arrayDimensions[1] +1)) + 
+                         (elements[1] * (variable->variable.arrayDimensions[2] +1)) +
+                         (elements[2] * (variable->variable.arrayDimensions[3] +1)) +
+                          elements[3];
+                break;
+                
+        case 5: /* array[x][y][z][a][b] */
+                offset = (elements[0] * (variable->variable.arrayDimensions[1] +1)) + 
+                         (elements[1] * (variable->variable.arrayDimensions[2] +1)) +
+                         (elements[2] * (variable->variable.arrayDimensions[3] +1)) +
+                         (elements[3] * (variable->variable.arrayDimensions[4] +1)) +
+                          elements[4];
+                break;
+    }
+
+    printf("getArrayOffset(): %d, %d, %d, %d: Offset = %d\n ", elements[0], elements[1], elements[2], elements[3], elements[4],  offset);
+    return offset;
+    
 }
 
 
@@ -695,7 +736,7 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_INTEGER_ARRAY) {
-        printf("getArrayElement(): Variable '%s' is not an integer array.\n",
+        printf("getArrayElement_i(): Variable '%s' is not an integer array.\n",
                variable->variable.variableName);
         return 0;
     }
@@ -706,7 +747,7 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
 
     /* Are we in range? */
     if (offset > variable->variable.maxLength) {
-        printf("getArrayElement(): Index out of range.\n");
+        printf("getArrayElement_i(): Index out of range.\n");
         return 0;
     }
 
@@ -758,7 +799,7 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
     va_list args;
     unsigned offset = 1;
     short thisDimension;
-    SB_FLOAT *iPtr;
+    SB_FLOAT *fPtr;
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
@@ -768,18 +809,7 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
     }
 
     va_start(args, variable);
-    while (1) {
-        /* Shorts get promoted to ints, hence the following. */
-        thisDimension = va_arg(args, int);
-
-        /* Done, if negative. */
-        if (thisDimension < 0) {
-            break;
-        }
-
-        offset *= thisDimension;
-    }
-
+    offset = getArrayOffset(variable, args);
     va_end(args);
 
     /* Are we in range? */
@@ -792,9 +822,9 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
      * We now have an offset representing the number of elements.
      * Fetch the array pointer from the variable, and manipulate it!
      */
-    iPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
+    fPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
     
-    return (iPtr[offset]);
+    return (fPtr[offset]);
 }
 
 
@@ -803,7 +833,7 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...) {
     va_list args;
     unsigned offset = 1;
     short thisDimension;
-    SB_FLOAT *iPtr;
+    SB_FLOAT *fPtr;
 
     /* Do we actually have an FP array? */
     if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
@@ -813,18 +843,7 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...) {
     }
 
     va_start(args, newValue);
-    while (1) {
-        /* Shorts get promoted to ints, hence the following. */
-        thisDimension = va_arg(args, int);
-
-        /* Done, if negative. */
-        if (thisDimension < 0) {
-            break;
-        }
-
-        offset *= thisDimension;
-    }
-
+    offset = getArrayOffset(variable, args);
     va_end(args);
 
     /* Are we in range? */
@@ -837,8 +856,8 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...) {
      * We now have an offset representing the number of elements.
      * Fetch the array pointer from the variable, and manipulate it!
      */
-    iPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
-    iPtr[offset] = newValue;
+    fPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
+    fPtr[offset] = newValue;
 }
 
 
@@ -868,10 +887,3 @@ char *getSBLocalVariableTypeName(SBLOCAL variable) {
     }
 }
 
-
-
-/* DELETE ME LATER */
-unsigned getOffset(SBLOCAL variable, short x, short y) {
-    unsigned offset = getArrayOffset(variable, (va_list)&x);
-    printf("getOffset(%d, %d) = %d\n", x, y, offset);
-}
