@@ -313,13 +313,14 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
                          elements[y] * dimZ * dimA + 
                          elements[z] * dimA + 
                          elements[a];
+                /* printf("Calculation:  %d * %d * %d * %d * %d + %d * %d * %d + %d * %d + %d = %d\n", elements[x], dimY, dimZ, dimA, elements[y], dimZ, dimA, elements[z], dimA, elements[a], offset); */
                 break;
                 
         case 5: /* array[x][y][z][a][b] */
-                offset = elements[x] * 
-                         elements[y] * 
-                         elements[z] * 
-                         elements[a] * 
+                offset = elements[x] * dimY * dimZ * dimA * dimB +
+                         elements[y] * dimZ * dimA * dimB +
+                         elements[z] * dimA * dimB +
+                         elements[a] * dimB +
                          elements[b];
                 break;
     }
