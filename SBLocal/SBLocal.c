@@ -4,6 +4,7 @@
 #include <stdarg.h>
 
 #include "SBLocal.h"
+#include "../includes/qdos_errors.h"
 
 /* This file handles all the code necessary to create, destroy, find,
  * retrieve and set values for SuperBASIC LOCal variables.
@@ -49,7 +50,7 @@ static void deleteNode(SBLOCAL node);
 static short max_sblocal_type = sizeof(sblocal_types)/sizeof(sblocal_types[0]) -1;
 
 /* Calculate the offset into an array of 'n' dimensions. */
-static unsigned getArrayOffset(SBLOCAL variable, va_list args);
+static int getArrayOffset(SBLOCAL variable, va_list args);
 
 /*===================================================================PRIVATE */
 
@@ -69,8 +70,8 @@ static void pushSBLocalScope(SBLOCAL root) {
         SBLocalStack[stackPointer++] = root;
         /* printf("pushSBLocalScope(): SBLocalStack[%d] = %p\n", stackPointer-1, root); */
     } else {
-        printf("pushSBLocalScope(): Stack overflow.\n");
-        exit(1);
+        fprintf(stderr, "pushSBLocalScope(): Stack overflow.\n");
+        exit(ERR_OV);
     }
 }
 
@@ -86,8 +87,8 @@ static SBLOCAL popSBLocalScope() {
         /* printf("popSBLocalScope(): SBLocalStack[%d] = %p\n", stackPointer, temp); */
         return temp;
     } else {
-        printf("popSBLocalScope(): Stack underflow.\n");
-        exit(1);
+        fprintf(stderr, "popSBLocalScope(): Stack underflow.\n");
+        exit(ERR_OV);
     }
 }
 
@@ -106,7 +107,8 @@ static SBLOCAL peekSBLocalScope() {
 /* Fetch scope from the stack at the given level. 0 = oldest scope. */
 SBLOCAL peekSBLocalScopeLevel(unsigned short level) {
     if (level > MAX_STACK_DEPTH) {
-        printf("peekSBLocalScopeLevel(): Level (%d) too deep.\n", level);
+        fprintf(stderr, "peekSBLocalScopeLevel(): Level (%d) too deep.\n", level);
+        exit (ERR_OV);
     }
 
     /* This returns NULL if we go deeper than first scope level. */
@@ -148,7 +150,8 @@ SBLOCAL findSBLocalVariableByName(char *variableName) {
     }
 
     /* We did not find it. */
-    printf("findSBLocalVariable(): Variable '%s' not found.\n", variableName);
+    fprintf(stderr, "findSBLocalVariable(): Variable '%s' not found.\n", variableName);
+    exit (ERR_NF);
     return NULL;
 }
 
@@ -169,7 +172,8 @@ static SBLOCAL createNode() {
         temp->variable.maxLength = 0;
         /* printf("createNode(): New node at %p\n", temp); */
     } else {
-        printf("createNode(): Out of memory\n");
+        fprintf(stderr, "createNode(): Out of memory\n");
+        /* NO EXIT HERE */
     }
 
     return temp;
@@ -183,13 +187,13 @@ static void *createArray(unsigned short bytesRequired) {
 
     /* Check if someone is being silly. */
     if (!bytesRequired) {
-        printf("createArray(): Cannot allocate empty array\n");
+        fprintf(stderr, "createArray(): Cannot allocate empty array\n");
         return NULL;
     }
 
     temp = malloc((size_t)bytesRequired);
     if (!temp) {
-        printf("createArray(): Out of memory\n");
+        fprintf(stderr, "createArray(): Out of memory\n");
         return NULL;
     }
 
@@ -229,13 +233,16 @@ static void deleteNode(SBLOCAL node) {
 }
 
 /* 
- * Calculate the offset into an array on 'n' dimensions. We gat called
+ * Calculate the offset into an array on 'n' dimensions. We get called
  * from a couple of places specifically getArrayElement() and setArrayElement()
  * functions.
- * We get passed a pointer to the callers variable args, we do not call 
+ *
+ * NOTE: We get passed a pointer to the callers variable args, we do not call 
  * va_start or va_end here. Ever!
+ *
+ * This is also where we check that the array indexes are in range.
  */
-static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
+static int getArrayOffset(SBLOCAL variable, va_list args) {
     short thisDimension = 0;
     unsigned offset = 0;
     short dimensionIndex = 0;
@@ -248,6 +255,7 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
     short a = 3;
     short b = 4;
     
+    short dimX = variable->variable.arrayDimensions[x] + 1;
     short dimY = variable->variable.arrayDimensions[y] + 1;
     short dimZ = variable->variable.arrayDimensions[z] + 1;
     short dimA = variable->variable.arrayDimensions[a] + 1;
@@ -263,6 +271,14 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
             break;
         }
         
+        /* Are we in range? Caller has to deal with this.*/
+        if (thisDimension > variable->variable.arrayDimensions[dimensionIndex]) {
+            fprintf(stderr, "getArrayOffset(): Subscript out of range. Got %d, maximum is %d.\n", 
+                            thisDimension, variable->variable.arrayDimensions[dimensionIndex]);
+            return -1;
+        }
+            
+        
         elements[dimensionIndex++] = thisDimension;        
     }
     
@@ -271,8 +287,7 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
      * The element of array[x][y] requested, comes in as [x][y][-1].
      * arrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
      *
-     * MIGHT HELP?
-     *
+     * THE FOLLOWING MIGHT HELP?
      *
      * 1. array[dimX]
      *    1-D array index for array[x] = [x].
@@ -298,14 +313,14 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
                 break;
                 
         case 2: /* array[x][y] */
-                offset = elements[x] * dimY + elements[y];
+                offset = elements[x] * dimY + 
+                         elements[y];
                 break;
                 
         case 3: /* array[x][y][z] */
                 offset = elements[x] * dimY * dimZ + 
                          elements[y] * dimZ +
                          elements[z];
-                /* printf("Calculation: %d * %d * %d + %d * %d + %d = %d\n", elements[x], dimY, dimZ, elements[y], dimZ, elements[z], offset); */
                 break;
                 
         case 4: /* array[x][y][z][a] */
@@ -313,7 +328,6 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
                          elements[y] * dimZ * dimA + 
                          elements[z] * dimA + 
                          elements[a];
-                /* printf("Calculation:  %d * %d * %d * %d * %d + %d * %d * %d + %d * %d + %d = %d\n", elements[x], dimY, dimZ, dimA, elements[y], dimZ, dimA, elements[z], dimA, elements[a], offset); */
                 break;
                 
         case 5: /* array[x][y][z][a][b] */
@@ -325,7 +339,6 @@ static unsigned getArrayOffset(SBLOCAL variable, va_list args) {
                 break;
     }
 
-    /* printf("getArrayOffset(): returning %d\n", offset); */
     return offset;
     
 }
@@ -342,12 +355,14 @@ SB_FLOAT getSBLocalVariable(SBLOCAL variable) {
         if (variable->variable.variableType == SBLOCAL_FLOAT) {
             result = variable->variable.variableValue.floatValue;
         } else {
-            printf("getSBLocalVariable(): Incompatible variable types.\n");
-            printf("\tExpected: %s. Found: %s.\n", sblocal_types[SBLOCAL_FLOAT],
-                   sblocal_types[variable->variable.variableType]);
+            fprintf(stderr, "getSBLocalVariable(): Incompatible variable types.\n");
+            fprintf(stderr, "\tExpected: %s. Found: %s.\n", sblocal_types[SBLOCAL_FLOAT],
+                            sblocal_types[variable->variable.variableType]);
+            exit (ERR_BP);
         }
     } else {
-        printf("getSBLocalVariable(): Unknown Local Floating Point Variable.\n");
+        fprintf(stderr, "getSBLocalVariable(): Unknown Local Floating Point Variable.\n");
+        exit (ERR_NF);
     }
     return result;
 }
@@ -361,12 +376,14 @@ SB_INTEGER getSBLocalVariable_i(SBLOCAL variable) {
         if (variable->variable.variableType == SBLOCAL_INTEGER) {
             result = variable->variable.variableValue.integerValue;
         } else {
-            printf("getSBLocalVariable_i(): Incompatible variable types.\n");
-            printf("\tExpected: %s. Found: %s.\n", sblocal_types[SBLOCAL_INTEGER],
-                   sblocal_types[variable->variable.variableType]);
+            fprintf(stderr, "getSBLocalVariable_i(): Incompatible variable types.\n");
+            fprintf(stderr, "\tExpected: %s. Found: %s.\n", sblocal_types[SBLOCAL_INTEGER],
+                            sblocal_types[variable->variable.variableType]);
+            exit (ERR_BP);
         }
     } else {
-        printf("getSBLocalVariable_i(): Unknown Local Integer Variable.\n");
+        fprintf(stderr, "getSBLocalVariable_i(): Unknown Local Integer Variable.\n");
+        exit (ERR_NF);
     }
     return result;
 }
@@ -380,12 +397,14 @@ SB_CHAR *getSBLocalVariable_s(SBLOCAL variable) {
         if (variable->variable.variableType == SBLOCAL_STRING) {
             result = (char *)variable->variable.variableValue.arrayValue;
         } else {
-            printf("getSBLocalVariable_s(): Incompatible variable types.\n");
-            printf("\tExpected: %s. Found: %s.\n", sblocal_types[SBLOCAL_STRING],
-                   sblocal_types[variable->variable.variableType]);
+            fprintf(stderr, "getSBLocalVariable_s(): Incompatible variable types.\n");
+            fprintf(stderr, "\tExpected: %s. Found: %s.\n", sblocal_types[SBLOCAL_STRING],
+                            sblocal_types[variable->variable.variableType]);
+            exit (ERR_BP);
         }
     } else {
-        printf("getSBLocalVariable_s(): Unknown Local String Variable.\n");
+        fprintf(stderr, "getSBLocalVariable_s(): Unknown Local String Variable.\n");
+        exit (ERR_NF);
     }
     return result;
 }
@@ -398,10 +417,12 @@ void setSBLocalVariable(SBLOCAL variable, SB_FLOAT newValue) {
         if (variable->variable.variableType == SBLOCAL_FLOAT) {
             variable->variable.variableValue.floatValue = newValue;
         } else {
-            printf("setSBLocalVariable(): Incompatible variable types.\n");
+            fprintf(stderr, "setSBLocalVariable(): Incompatible variable types.\n");
+            exit (ERR_BP);
         }
     } else {
-        printf("setSBLocalVariable(): Unknown Local Floating Point Variable.\n");
+        fprintf(stderr, "setSBLocalVariable(): Unknown Local Floating Point Variable.\n");
+        exit (ERR_NF);
     }
 }
 
@@ -412,10 +433,12 @@ void setSBLocalVariable_i(SBLOCAL variable, SB_INTEGER newValue) {
         if (variable->variable.variableType == SBLOCAL_INTEGER) {
             variable->variable.variableValue.integerValue = newValue;
         } else {
-            printf("setSBLocalVariable_i(): Incompatible variable types.\n");
+            fprintf(stderr, "setSBLocalVariable_i(): Incompatible variable types.\n");
+            exit (ERR_BP);
         }
     } else {
-        printf("setSBLocalVariable_i(): Unknown Local Integer Variable.\n");
+        fprintf(stderr, "setSBLocalVariable_i(): Unknown Local Integer Variable.\n");
+        exit (ERR_NF);
     }
 }
 
@@ -447,10 +470,12 @@ void setSBLocalVariable_s(SBLOCAL variable, SB_CHAR *newValue) {
                 temp[variable->variable.maxLength] = '\0';
             }
         } else {
-            printf("setSBLocalVariable_s(): Incompatible variable types.\n");
+            fprintf(stderr, "setSBLocalVariable_s(): Incompatible variable types.\n");
+            exit (ERR_BP);
         }
     } else {
-        printf("setSBLocalVariable_s(): Unknown Local String Variable.\n");
+        fprintf(stderr, "setSBLocalVariable_s(): Unknown Local String Variable.\n");
+        exit (ERR_NF);
     }
 }
 
@@ -463,8 +488,8 @@ SBLOCAL beginScope() {
     SBLOCAL temp = createNode();
 
     if (temp == NULL) {
-        printf("beginScope(): Out of memory\n");
-        exit(1);
+        fprintf(stderr, "beginScope(): Out of memory\n");
+        exit(ERR_OM);
     }
 
     /* Name this root, as root. */
@@ -481,7 +506,6 @@ SBLOCAL beginScope() {
 void endCurrentScope() {
     /* Get the current scope which is about to end. */
     SBLOCAL temp = popSBLocalScope();
-    /* printf("endCurrentScope(): Ending scope %p.\n", temp); */
     if (temp) {
         deleteNode(temp);
     }
@@ -498,14 +522,11 @@ SBLOCAL newLocal(short variableType, char *variableName) {
     SBLOCAL root;
     short dimn;
 
-    /* printf("newLocal(): Creating new LOCal %s variable: '%s'\n",
-           sblocal_types[variableType], variableName); */
-
     /* If we can't create a node, bale out. */
     SBLOCAL temp = createNode();
     if (!temp) {
         printf("newLocal(): Out of memory.n");
-        exit(1);
+        exit(ERR_OM);
     }
 
     /* Initialise the new node. */
@@ -582,12 +603,10 @@ SBLOCAL newLocalString(char *variableName, unsigned short stringLength) {
      * count from index 1. */
     temp->variable.variableValue.arrayValue = createArray(newSize + 2);
     if (!temp->variable.variableValue.arrayValue) {
-        printf("newLocalString(): Out of memory.n");
-        exit(1);
+        fprintf(stderr, "newLocalString(): Out of memory.n");
+        exit(ERR_OM);
     }
 
-    /* printf("newLocalString(): Created '%s' at %p with array at %p.\n",
-              variableName, temp, temp->variable.variableValue.arrayValue); */
     return temp;
 }
 
@@ -636,8 +655,8 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
             break;
 
         default:
-            printf("newLocalArray(): Unrecognised array type. (%d)\n", variableType);
-            printf("newLocalArray(): Array creation ignored.");
+            fprintf(stderr, "newLocalArray(): Unrecognised array type. (%d)\n", variableType);
+            fprintf(stderr, "newLocalArray(): Array creation ignored.");
             return NULL;
     }
 
@@ -687,8 +706,8 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     baseAddress = createArray(totalSize);
 
     if (!baseAddress) {
-        printf("newLocalArray(): Out of memory.n");
-        exit(1);
+        fprintf(stderr, "newLocalArray(): Out of memory.n");
+        exit(ERR_OM);
     }
 
     /* All ok, store the base address. */
@@ -702,7 +721,6 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
     switch (variableType) {
         case SBLOCAL_INTEGER_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_INTEGER_SIZE; x++) {
-                /* printf("init: x=%d, ptr=%p\n", x, ptr); */
                 *((SB_INTEGER *)ptr) = 0;
                 ptr += SB_ARRAY_INTEGER_SIZE;
             }
@@ -711,17 +729,11 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
         /* Floats are 8 bytes, usually. */
         case SBLOCAL_FLOAT_ARRAY:
             for (x = 0; x < totalSize / SB_ARRAY_FLOAT_SIZE; x++) {
-                /* printf("init: x=%d, ptr=%p\n", x, ptr); */
                 *((SB_FLOAT *)ptr) = 0.0;
                 ptr += SB_ARRAY_FLOAT_SIZE;
             }
             break;
     }
-
-    /*
-    printf("newLocalArray(): Created '%s' at %p with array at %p.\n",
-              variableName, temp, temp->variable.variableValue.arrayValue);
-    */
 
     /* Finally, after all that, send the new SBLOCAL back to the caller. */
     return temp;
@@ -731,12 +743,12 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
 /* Fetch an element from an Integer Array on any number of dimensions. */
 SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
     va_list args;
-    unsigned offset = 0;
+    int offset = 0;
     SB_INTEGER *iPtr;
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_INTEGER_ARRAY) {
-        printf("getArrayElement_i(): Variable '%s' is not an integer array.\n",
+        fprintf(stderr, "getArrayElement_i(): Variable '%s' is not an integer array.\n",
                variable->variable.variableName);
         return 0;
     }
@@ -744,20 +756,17 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
     va_start(args, variable);
     offset = getArrayOffset(variable, args);
     va_end(args);
-    /*printf("getArrayElement_i(): Offset is %d\n", offset);*/
-
-    /* Are we in range? Convert bytes to integers. */
-    if (offset > variable->variable.maxLength / SB_ARRAY_INTEGER_SIZE) {
-        printf("getArrayElement_i(): Index out of range.\n");
-        return 0;
+    
+    if (offset < 0) {
+        fprintf(stderr, "getArrayElement_i(): Array %s, subscript out of range.\n", variable->variable.variableName);
+        exit (ERR_OR);
     }
-
+    
     /*
      * We now have an offset representing the number of elements.
      * Fetch the array pointer from the variable, and manipulate it!
      */
-    iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;
-    
+    iPtr = (SB_INTEGER *)variable->variable.variableValue.arrayValue;   
     return (iPtr[offset]);
 }
 
@@ -765,13 +774,13 @@ SB_INTEGER getArrayElement_i(SBLOCAL variable, ...) {
 /* Set an Integer Array element, on any number of dimensions. */
 void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
     va_list args;
-    unsigned offset = 1;
+    int offset = 1;
     short thisDimension;
     SB_INTEGER *iPtr;
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_INTEGER_ARRAY) {
-        printf("setArrayElement_i(): Variable '%s' is not an integer array.\n",
+        fprintf(stderr, "setArrayElement_i(): Variable '%s' is not an integer array.\n",
                variable->variable.variableName);
         return;
     }
@@ -779,13 +788,14 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
     va_start(args, newValue);
     offset = getArrayOffset(variable, args);
     va_end(args);
-    /*printf("setArrayElement_i(): Offset is %d\n", offset);*/
 
-    /* Are we in range? Convert bytes to integers. */
-    if (offset > variable->variable.maxLength / SB_ARRAY_INTEGER_SIZE) {
-        printf("setArrayElement_i(): Index out of range.\n");
-        return;
+    
+    /* Are we in range? */
+    if (offset < 0) {
+        fprintf(stderr, "setArrayElement_i(): Array %s, subscript out of range.\n", variable->variable.variableName);
+        exit (ERR_OR);
     }
+    
 
     /*
      * We now have an offset representing the number of elements.
@@ -799,26 +809,25 @@ void setArrayElement_i(SBLOCAL variable, SB_INTEGER newValue, ...) {
 /* Fetch an element from an Integer Array on any number of dimensions. */
 SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
     va_list args;
-    unsigned offset = 1;
+    int offset = 1;
     short thisDimension;
     SB_FLOAT *fPtr;
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
-        printf("getArrayElement(): Variable '%s' is not an integer array.\n",
-               variable->variable.variableName);
-        return 0;
+        fprintf(stderr, "getArrayElement(): Variable '%s' is not an integer array.\n",
+                        variable->variable.variableName);
+        return 0.0;
     }
 
     va_start(args, variable);
     offset = getArrayOffset(variable, args);
     va_end(args);
-    /*printf("getArrayElement(): Offset is %d\n", offset);*/
 
-    /* Are we in range? Convert bytes to floats.*/
-    if (offset > variable->variable.maxLength / SB_ARRAY_FLOAT_SIZE) {
-        printf("getArrayElement(): Index out of range.\n");
-        return 0;
+    /* Are we in range? */
+    if (offset < 0) {
+        fprintf(stderr, "setArrayElement(): Array %s, subscript out of range.\n", variable->variable.variableName);
+        exit (ERR_OR);
     }
 
     /*
@@ -826,7 +835,6 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
      * Fetch the array pointer from the variable, and manipulate it!
      */
     fPtr = (SB_FLOAT *)variable->variable.variableValue.arrayValue;
-    
     return (fPtr[offset]);
 }
 
@@ -834,26 +842,25 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
 /* Set a Floating Point Array element, on any number of dimensions. */
 void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...) {
     va_list args;
-    unsigned offset = 1;
+    int offset = 1;
     short thisDimension;
     SB_FLOAT *fPtr;
 
     /* Do we actually have an FP array? */
     if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
-        printf("setArrayElement(): Variable '%s' is not a floating point array.\n",
-               variable->variable.variableName);
-        return;
+        fprintf(stderr, "setArrayElement(): Variable '%s' is not a floating point array.\n",
+                        variable->variable.variableName);
+        exit (ERR_BP);
     }
 
     va_start(args, newValue);
     offset = getArrayOffset(variable, args);
     va_end(args);
-    /*printf("setArrayElement(): Offset is %d\n", offset);*/
 
-    /* Are we in range? Convert bytes to floats. */
-    if (offset > variable->variable.maxLength / SB_ARRAY_FLOAT_SIZE) {
-        printf("setArrayElement(): Index out of range.\n");
-        return;
+    /* Are we in range? */
+    if (offset < 0) {
+        fprintf(stderr, "setArrayElement(): Array %s, subscript out of range.\n", variable->variable.variableName);
+        exit (ERR_OR);
     }
 
     /*
@@ -870,7 +877,7 @@ short getSBLocalVariableType(SBLOCAL variable) {
     if (variable){
         return variable->variable.variableType;
     } else {
-        printf("getSBLocalVariableType(): Unknown Local Variable.\n");
+        fprintf(stderr, "getSBLocalVariableType(): Unknown Local Variable.\n");
         return 0;
     }
 }
@@ -881,13 +888,13 @@ char *getSBLocalVariableTypeName(SBLOCAL variable) {
         if (variable->variable.variableType <= max_sblocal_type) {
             return sblocal_types[variable->variable.variableType];
         } else {
-            printf("getSBLocalVariableTypeName(): Variable type, %d, bigger than maximum, %d.\n",
-                   variable->variable.variableType, max_sblocal_type);
-            return NULL;
+            fprintf(stderr, "getSBLocalVariableTypeName(): Variable type, %d, bigger than maximum, %d.\n",
+                            variable->variable.variableType, max_sblocal_type);
+            exit (ERR_BP);
         }
     } else {
-        printf("getSBLocalVariableTypeName(): Unknown Local Variable.\n");
-        return NULL;
+        fprintf(stderr, "getSBLocalVariableTypeName(): Unknown Local Variable.\n");
+        exit (ERR_NF);
     }
 }
 
