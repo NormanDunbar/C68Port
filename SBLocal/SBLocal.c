@@ -68,7 +68,6 @@ static void pushSBLocalScope(SBLOCAL root) {
     /* Prevent over-run. */
     if (stackPointer < MAX_STACK_DEPTH) {
         SBLocalStack[stackPointer++] = root;
-        /* printf("pushSBLocalScope(): SBLocalStack[%d] = %p\n", stackPointer-1, root); */
     } else {
         fprintf(stderr, "pushSBLocalScope(): Stack overflow.\n");
         exit(ERR_OV);
@@ -84,7 +83,6 @@ static SBLOCAL popSBLocalScope() {
     if (stackPointer > 0) {
         SBLOCAL temp = SBLocalStack[--stackPointer];
         SBLocalStack[stackPointer] = NULL;
-        /* printf("popSBLocalScope(): SBLocalStack[%d] = %p\n", stackPointer, temp); */
         return temp;
     } else {
         fprintf(stderr, "popSBLocalScope(): Stack underflow.\n");
@@ -170,10 +168,9 @@ static SBLOCAL createNode() {
         temp->variable.variableType = SBLOCAL_UNDEFINED;
         temp->variable.variableValue.arrayValue = NULL;
         temp->variable.maxLength = 0;
-        /* printf("createNode(): New node at %p\n", temp); */
     } else {
         fprintf(stderr, "createNode(): Out of memory\n");
-        /* NO EXIT HERE */
+        /* No exit here, caller copes. */
     }
 
     return temp;
@@ -197,8 +194,6 @@ static void *createArray(unsigned short bytesRequired) {
         return NULL;
     }
 
-    /* printf("createArray(): Allocated %d bytes at address %p\n", bytesRequired, temp); */
-
     /* NULL out the entire array of bytes. */
     memset(temp, '\0', bytesRequired);
 
@@ -211,13 +206,10 @@ static void *createArray(unsigned short bytesRequired) {
  * then walk along deleting each node from the tail, backwards. */
 static void deleteNode(SBLOCAL node) {
     if (node) {
-        /* printf("deleteNode(): Deleting node '%s' at %p\n", node->variable.variableName, node); */
-
         /* Delete the list of LOCals. */
 
         /* If we have an array, delete the array's memory */
         if (node->variable.variableType > SBLOCAL_FLOAT) {
-            /* printf("deleteNode(): Deleting arayPointer at %p\n", node->variable.variableValue.arrayValue); */
             free(node->variable.variableValue.arrayValue);
         }
 
@@ -253,13 +245,27 @@ static int getArrayOffset(SBLOCAL variable, va_list args) {
     short y = 1;
     short z = 2;
     short a = 3;
-    short b = 4;
+    short b = 4; 
+
+    short dimX;
+    short dimY;
+    short dimZ;
+    short dimA;
+    short dimB;
     
-    short dimX = variable->variable.arrayDimensions[x] + 1;
-    short dimY = variable->variable.arrayDimensions[y] + 1;
-    short dimZ = variable->variable.arrayDimensions[z] + 1;
-    short dimA = variable->variable.arrayDimensions[a] + 1;
-    short dimB = variable->variable.arrayDimensions[b] + 1;
+    /* Strings have 2 extra bytes, not 1 as in other arrays. */
+    short stringExtra = 0;
+    short otherExtra = 1;
+    
+    if (variable->variable.variableType == SBLOCAL_STRING_ARRAY) {
+        stringExtra = 1;
+    }
+    
+    dimX = variable->variable.arrayDimensions[x] + otherExtra + stringExtra;
+    dimY = variable->variable.arrayDimensions[y] + otherExtra + stringExtra;
+    dimZ = variable->variable.arrayDimensions[z] + otherExtra + stringExtra;
+    dimA = variable->variable.arrayDimensions[a] + otherExtra + stringExtra;
+    dimB = variable->variable.arrayDimensions[b] + otherExtra + stringExtra;
 
     /* Extract the various dimensions, -1 ends the list. */
     while (1) {
@@ -692,8 +698,6 @@ SBLOCAL newLocalArray(char *variableName, short variableType, ...) {
 
     /* Don't forget this bit! */
     va_end(args);
-
-    /* printf("newLocalArray(): totalSize = %d.\n", totalSize); */
 
     /* We now have the correct number of bytes required to allocate an array
      * of the requested type and with enough extra elements to cater for any
