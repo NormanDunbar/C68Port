@@ -819,7 +819,7 @@ SB_FLOAT getArrayElement(SBLOCAL variable, ...) {
 
     /* Do we actually have an integer array? */
     if (variable->variable.variableType != SBLOCAL_FLOAT_ARRAY) {
-        fprintf(stderr, "getArrayElement(): Variable '%s' is not an integer array.\n",
+        fprintf(stderr, "getArrayElement(): Variable '%s' is not a floating point array.\n",
                         variable->variable.variableName);
         return 0.0;
     }
