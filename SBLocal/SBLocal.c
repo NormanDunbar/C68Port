@@ -289,6 +289,7 @@ static int getArrayOffset(SBLOCAL variable, va_list args) {
     }
     
     /* If we created an array[3][5] we actually created array[4][6]. 
+     * If we created a string array[3][5] we actually created array[4][7]. 
      *
      * The element of array[x][y] requested, comes in as [x][y][-1].
      * arrayDimensions[] holds 3, 5, -1, -1, -1 and are the actual sizes requested.
@@ -299,16 +300,16 @@ static int getArrayOffset(SBLOCAL variable, va_list args) {
      *    1-D array index for array[x] = [x].
      *
      * 2. array[dimX][dimY]
-     *    1-D array index for array[x][y] = [x*dimY +y].
+     *    2-D array index for array[x][y] = [x*dimY +y].
      *
      * 3. array[dimX][dimY][dimZ]
-     *    1-D array index for array[x][y][z] = [x*dimY*dimZ + y*dimZ + z].
+     *    3-D array index for array[x][y][z] = [x*dimY*dimZ + y*dimZ + z].
      *
      * 4. array[dimX][dimY][dimZ][dimA]
-     *    1-D array index for array[x][y][z][a] = [x*dimY*dimZ*dimA + y*dimZ*dimA + z*dimA + a].
+     *    4-D array index for array[x][y][z][a] = [x*dimY*dimZ*dimA + y*dimZ*dimA + z*dimA + a].
      *
      * 5. array[dimX][dimY][dimZ][dimA][dimB]
-     *    1-D array index for array[x][y][z][a][b] = [x*dimY*dimZ*dimA*dimB + y*dimZ*dimA*dimB + z*dimA*dumB + a*dimB +b].
+     *    5-D array index for array[x][y][z][a][b] = [x*dimY*dimZ*dimA*dimB + y*dimZ*dimA*dimB + z*dimA*dumB + a*dimB +b].
      */
      
      
