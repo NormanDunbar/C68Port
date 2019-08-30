@@ -162,7 +162,7 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...);
  *
  * The following are defined as deep as SB_ARRAY_MAX_DIMENSIONS which is defined
  * above. If you need to make that 6, for example, you MUST add an extra definition
- * for LOCAL_ARRAY_INTEGER6 and so on below.
+ * for LOCAL_ARRAY_INTEGER6 and so on below, as well as changing getArrayOffset().
  */
 #define LOCAL_ARRAY_INTEGER(v, d1) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), -1)
 #define LOCAL_ARRAY_INTEGER2(v, d1, d2) newLocalArray((v), SBLOCAL_INTEGER_ARRAY, (d1), (d2), -1)
@@ -215,7 +215,6 @@ void setArrayElement(SBLOCAL variable, SB_FLOAT newValue, ...);
 
 #define LOCAL_TYPE(v)       getSBLocalVariableType(findSBLocalVariableByName((v)))
 #define LOCAL_TYPE_NAME(v)  getSBLocalVariableTypeName(findSBLocalVariableByName((v)))
-
 
 
 #endif /* __SBLOCALNODE_H__ */

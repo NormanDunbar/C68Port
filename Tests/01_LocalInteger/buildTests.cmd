@@ -9,5 +9,5 @@ echo USAGE: .\buildTest filename (with no extension)
 echo EXAMPLE:       .\buildTest 00_Scope
 echo.
 rem
-gcc -o %1.exe -I ..\..\ %1.c ..\..\SBLocal.c
+gcc -o %1.exe -I ..\..\SBLocal %1.c ..\..\SBLocal\SBLocal.c
 
