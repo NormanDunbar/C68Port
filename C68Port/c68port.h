@@ -1,12 +1,7 @@
 #ifndef __C68PORT_H__
 #define __C68PORT_H__
 
-/*===========================================================================
- * HEADERS
- *===========================================================================*/
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+
 
 /*===========================================================================
  * DEFINES
@@ -17,6 +12,7 @@
 #define QLFP_DECIMAL 2              /* Decimal float, A = 1234. */
 #define TYPE_LINENUMBER 0x8D00      /* Line Number flag */
 
+/* Type bytes */
 #define TYPE_MULTISPACE 0x80        /* Print n spaces */
 #define TYPE_KEYWORD    0x81        /* Keyword */
 #define TYPE_SYMBOL     0x84        /* Symbols */
@@ -34,6 +30,8 @@
 #define TYPE_FP_HEX_MAX 0xef        /* Highest Hexadecimal float */
 #define TYPE_FP_DEC_MIN 0xf0        /* Lowest Decimal float */
 #define TYPE_FP_DEC_MAX 0xff        /* Highest Decimal float */
+
+
 
 #ifdef QDOS
 
@@ -66,20 +64,21 @@ typedef struct {
  *===========================================================================*/
 ushort decodeHeader(FILE *fp, ushort *entries, ushort *lines);
 ushort decodeNameTable(ushort entries, FILE *fp, ulong *offset);
-ushort decodeProgram(ushort lines, FILE *fp, char *fileName);
 ushort parseProgram(FILE *fp, ulong offset);
 ushort parseProgramLine(FILE *fp);
+ushort parseStatement(FILE *fp);
 
-void   doMultiSpaces(FILE *fp, FILE *listing);
-void   doKeywords(FILE *fp, FILE *listing);
-uchar  doSymbols(FILE *fp, FILE *listing);
-void   doOperators(FILE *fp, FILE *listing);
-void   doMonadics(FILE *fp, FILE *listing);
-void   doNames(FILE *fp, FILE *listing);
-void   doStrings(FILE *fp, FILE *listing);
-void   doText(FILE *fp, FILE *listing);
-void   doSeparators(FILE *fp, FILE *listing);
-void   doFloatingPoint(FILE *fp, FILE *listing, uchar leading);
+
+void doMultiSpaces(FILE *fp);
+void doKeywords(FILE *fp);
+void doSymbols(FILE *fp);
+void doOperators(FILE *fp);
+void doMonadics(FILE *fp);
+void doNames(FILE *fp);
+void doStrings(FILE *fp);
+void doText(FILE *fp);
+void doSeparators(FILE *fp);
+void doFloatingPoint(FILE *fp, uchar leading);
 
 short  getWord(FILE *fp);
 
@@ -97,25 +96,6 @@ void   swapExtension(char *savFile, char *newFilename, char *newExtension);
 
 #endif
 /*===========================================================================*/
-
-/*===========================================================================
- * GLOBALS
- *===========================================================================*/
-ushort quit = 0;
-ushort lastLineSize = 0;
-nameTableEntry *nameTable = NULL;
-
-/* File handles for, and the output files. */
-FILE *globals;          /* Globals_h */
-FILE *header;           /* Filename_h */
-FILE *source;           /* Filename_c */
-FILE *listing;          /* Filename_bas */
-
-char *globalFile = "globals_h";
-char headerFile[MAXPATH + 1];
-char sourceFile[MAXPATH + 1];
-char listingFile[MAXPATH + 1];
-
 
 
 /*===========================================================================*/

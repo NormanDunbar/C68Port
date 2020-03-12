@@ -10,7 +10,40 @@
  * August 24 2019. (Started!)
  *===========================================================================*/
 
+/*===========================================================================
+ * HEADERS
+ *===========================================================================*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "c68port.h"
+#include "keywords.h"
+
+/*===========================================================================
+ * GLOBALS
+ *===========================================================================*/
+
+ushort quit = 0;
+ushort lastLineSize = 0;
+nameTableEntry *nameTable = NULL;
+size_t ignore;
+
+/* File handles for, and the output files. */
+FILE *globals;          /* Globals_h */
+FILE *header;           /* Filename_h */
+FILE *source;           /* Filename_c */
+FILE *listing;          /* Filename_bas */
+
+char *globalFile = "globals_h";
+char headerFile[MAXPATH + 1];
+char sourceFile[MAXPATH + 1];
+char listingFile[MAXPATH + 1];
+
+ushort level = 0;           /* C68 source code indent level. */
+const uchar indent = 4;     /* Tab stop size. */
+
+
 
 
 /*=============================================================================
@@ -58,9 +91,16 @@ int main (int argc, char *argv[]) {
     }
 
     /* Create the output file names. */
+    printf("\n\nInput SAV (source) file..: '%s'\n", argv[1]);
     swapExtension(argv[1], headerFile, "h");
+    printf("Converted header file....: '%s'\n", headerFile);
+
     swapExtension(argv[1], sourceFile, "c");
+    printf("Converted source file....: '%s'\n", sourceFile);
+
     swapExtension(argv[1], listingFile, "bas");
+    printf("Conversion listing.......: '%s'\n", listingFile);
+
 
 
     /* Convert the program:
@@ -104,10 +144,11 @@ ushort decodeHeader(FILE *fp, ushort *entries, ushort *lines) {
     ushort programLines = 0;
     ushort nameTableEntries = 0;
 
+    fprintf(stderr, "decodeHeader()\n");
     quit = 0;
 
     /* Can we read the 4 byte header? */
-    if (fread(head, 1, 4, fp) != 4) {
+    if ((ignore = fread(head, 1, 4, fp)) != 4) {
         fprintf(stderr, "\n\nERROR: decodeHeader(): Cannot read SAV file header.\n");
         return 1;
     }
@@ -169,6 +210,8 @@ ushort decodeNameTable(ushort entries, FILE *fp, ulong *offset) {
     ushort procCount = 0;
     ushort fnCount[3] = {0,0,0};        /* FN$, FN, FN% counters */
 
+    fprintf(stderr, "decodeNameTable()\n");
+
     for (x = 0; x < entries; x++) {
         nameTable[x].offset = ftell(fp);
         nameTable[x].nameType = getWord(fp);
@@ -186,13 +229,13 @@ ushort decodeNameTable(ushort entries, FILE *fp, ulong *offset) {
         /* Do we need a recompile? */
         if (nameTable[x].nameLength >= MAXNAMESIZE) {
             size = MAXNAMESIZE - 1;
-            fread(nameTable[x].name, 1, size, fp);
+            ignore = fread(nameTable[x].name, 1, size, fp);
             fprintf(stderr, "\n\nWARNING: Cannot read a name with >= %d characters. Please amend the SAV file, or, recompile C68Port.\n", MAXNAMESIZE);
             fprintf(stderr, "The offending name is '%*.*s'\n.", MAXNAMESIZE, MAXNAMESIZE, nameTable[x].name);
             return 1;
         }
     
-        fread(nameTable[x].name, 1, nameTable[x].nameLength, fp);
+        ignore = fread(nameTable[x].name, 1, nameTable[x].nameLength, fp);
 
         /* Odd length names are padded. */
         if (nameTable[x].nameLength & 1)
@@ -217,6 +260,9 @@ ushort decodeNameTable(ushort entries, FILE *fp, ulong *offset) {
 
     fflush(stderr);
 
+    /* Return the program offset */
+    *offset = ftell(fp);
+
     return 0;
 }
 
@@ -226,6 +272,8 @@ ushort decodeNameTable(ushort entries, FILE *fp, ulong *offset) {
  * call out repeatedly to parseProgramLine() to do the needful.
  *===========================================================================*/
 ushort parseProgram(FILE *fp, ulong offset) {
+    fprintf(stderr, "parseProgram()\n");
+
     /* Open output files */
     header = fopen(headerFile, "w");
     source = fopen(sourceFile, "w");
@@ -269,149 +317,164 @@ ushort parseProgram(FILE *fp, ulong offset) {
  * Bytes: The content of the line. (LineSize in size, obviously!)
  * Byte: 0x84 (TYPE_SYMBOL) Indicates a linefeed to follow.
  * Byte: 0x0A The end of the line.
+ * 
+ * Lines may, of course, have multiple statements, but the last one is always
+ * terminated by a 0x840a word. (Well, pair of bytes!)
+ * 
+ * BEWARE, lines can only start with:
+ * 
+ * Keywords - but not $8107 (PROCedure), $8108 (FuNction) or $810D (ERRor),
+ * Names - but only type $0800 (Procedures) or $1402 (SuperBASIC procedure),
+ * Separators - but only a colon (Symbol $8402),
+ * Multispaces - $80nn.
  *===========================================================================*/
 ushort parseProgramLine(FILE *fp) {
     static ushort lineSize = 0;         /* Current line size */
     ushort flag;                        /* Line number coming indicator */
     ushort lineNumber;                  /* Guess! */
-    uchar  typeByte;
-    ulong offset;
-    uchar endOfLine;
 
-    /* Read the change in lineSize */
+    /* 
+     * Read the change in lineSize. We might be at EOF though
+     * so check this and return if so. we are done.
+     */
     lineSize += getWord(fp);
+    if (feof(fp))
+        return 0;
 
     if ((flag = getWord(fp)) != TYPE_LINENUMBER) {
         fprintf(stderr, "\n\nERROR: parseProgramLine(): Program out of step at offset %ld ($%08lx).\n", ftell(fp), ftell(fp));
-        fprintf(stderr, "Expected 0x8D00, found %xd.\n", flag);
+        fprintf(stderr, "Expected 0x8D00, found 0x%X.\n", flag);
         return 1;
     }
 
     /* Now the line number */
     lineNumber = getWord(fp);
     fprintf(listing, "%5d ", lineNumber);
+    printf("parseProgramLine(%d)\n", lineNumber);
 
-    while (1) {                 /* I could count bytes here .... */
-        /* Type Byte */
-        typeByte = fgetc(fp);
-        endOfLine = 0;
-        switch(typeByte) {
-            case TYPE_MULTISPACE: doMultiSpaces(fp, listing); break;
-            case TYPE_KEYWORD:    doKeywords(fp, listing); break;
-            case TYPE_SYMBOL:     endOfLine = doSymbols(fp, listing); break;
-            case TYPE_OPERATOR:   doOperators(fp, listing); break;
-            case TYPE_MONADIC:    doMonadics(fp, listing); break;
-            case TYPE_NAME:       doNames(fp, listing); break;
-            case TYPE_STRING:     doStrings(fp, listing); break;
-            case TYPE_TEXT:       doText(fp, listing); break;
-            case TYPE_SEPARATOR:  doSeparators(fp, listing); break;
-
-            /* Floats come in three formats, each with 16 leading bytes! */
-            case TYPE_FP_BIN_MIN ... TYPE_FP_BIN_MIN:   
-            case TYPE_FP_HEX_MIN ... TYPE_FP_HEX_MAX:
-            case TYPE_FP_DEC_MIN ... TYPE_FP_DEC_MAX:   
-                                    doFloatingPoint(fp, listing, typeByte); break;
-
-            default: 
-                offset = ftell(fp);
-                fprintf(stderr, "\n\nERROR: decodeProgram(): At offset %ld ($%08lx), read byte %d (%c). Out of sync.", offset, offset, typeByte, (typeByte > 31 ? typeByte : '.'));
-                fclose(listing);
-                return 1;
+    /* And the rest of the line - the statements */
+    while (1) {
+        /* Parse one statement and check for end of line */
+        if ((flag = parseStatement(fp)) == 10) {
+            return 0;
         }
 
-        /* Exit the while loop when we print an end of line character. */
-        if (endOfLine) {
-            fflush(listing);
-            break;
+        /* If an error was found, bale out. */
+        if (flag != 0) {
+            fprintf(stderr, "\n\nERROR: parseProgramLine(): parseStatement() Failed.\n");
+            return flag;
         }
     }
-
-    /* All went well - for this line */
-    return 0;
 }
+
 
 
 /*=============================================================================
- * DECODEPROGRAM disassembles the SAV file's contants representing the program
- * listing. Eventually, this will convert the SuperBASIC to C68 style C code.
- * (I hope!)
+ * PARSESTATEMENT() is the very low level program parser. It will parse and 
+ * convert one statement of the source program at a time. This is made up of:
+ * 
+ * Byte: To determine the statements type.
+ * Byte: Parameter for the type byte.
+ * Bytes: The content of the statements.
+ * EITHER:
+ * Byte: 0x84 (TYPE_SYMBOL) Indicates a linefeed to follow.
+ * Byte: 0x0A The end of the line.
+ * OR:
+ * Byte: 0x84 (TYPE_SYMBOL) Indicates a symbol to follow.
+ * Byte: 0x02 End of statement, a colon.
+ * 
+ * Returns 10 if end of line found.
+ *          2 if end of statement found.
+ *          1 if error.
  *===========================================================================*/
-ushort decodeProgram(ushort lines, FILE *fp, char *fileName) {
-    ushort x;
-    uchar  typeByte;
-    ushort programLine;
-    ushort lineSize = 0;
-    ushort flag;
-    ulong offset;
-    uchar endOfLine;
+ushort parseStatement(FILE *fp) {
+    uchar  typeByte;                    /* What are we processing? */
+    ulong offset;                       /* Where are we in the file? */
+    uchar endOfLine;                    /* Colon? End of Line? */
 
-    /* The format of a program line is:
-     * ushort - change in size over previous line;
-     * ushort - 0x8D00 line number flag;
-     * ushort - line number;
-     * bytes - rest of the line.
-     */
+    fprintf(stderr, "parseStatement()\n");
 
-    for (x = 0; x < lines; x++) {
-        lineSize += getWord(fp);
+    /* Type Byte */
+    typeByte = fgetc(fp);
+    endOfLine = 0;
 
-        if ((flag = getWord(fp)) != TYPE_LINENUMBER) {
-            fprintf(stderr, "\n\nERROR: decodeProgram(): Program out of step at offset %ld ($%08lx).\n", ftell(fp), ftell(fp));
-            fprintf(stderr, "Expected 0x8D00, found %xd.\n", flag);
-            fclose(listing);
+    /*-------------------------------------------------------------------------
+     * OK, there's a problem here. When we exit from whatever code we call to
+     * parse something, we need to be holding the next type byte. We exit back
+     * to parseProgram() when we hit (0x84 0x0A) which is a doSymbol() call
+     * technically.
+     * ----------------------------------------------------------------------*/
+    switch(typeByte) {
+        case TYPE_MULTISPACE: doMultiSpaces(fp); break;
+        case TYPE_KEYWORD:    doKeywords(fp); break;
+        case TYPE_SYMBOL:     doSymbols(fp); break;
+        case TYPE_OPERATOR:   doOperators(fp); break;
+        case TYPE_MONADIC:    doMonadics(fp); break;
+        case TYPE_NAME:       doNames(fp); break;
+        case TYPE_STRING:     doStrings(fp); break;
+        case TYPE_TEXT:       doText(fp); break;
+        case TYPE_SEPARATOR:  doSeparators(fp); break;
+
+        /* Floats come in three formats, each with 16 leading bytes! */
+        case TYPE_FP_BIN_MIN ... TYPE_FP_BIN_MIN:   
+        case TYPE_FP_HEX_MIN ... TYPE_FP_HEX_MAX:
+        case TYPE_FP_DEC_MIN ... TYPE_FP_DEC_MAX:   
+                                doFloatingPoint(fp, typeByte); break;
+
+        default: 
+            offset = ftell(fp);
+            fprintf(stderr, "\n\nERROR: parseStatement(): At offset %ld ($%08lx), read byte %d (%c). Out of sync.", offset, offset, typeByte, (typeByte > 31 ? typeByte : '.'));
             return 1;
-        }
-
-        /* Line number */
-        fprintf(listing, "%d ", getWord(fp));
-
-        /* Line contents */
-        while (1) {
-            /* Type Byte */
-            typeByte = fgetc(fp);
-            endOfLine = 0;
-            switch(typeByte) {
-                case TYPE_MULTISPACE: doMultiSpaces(fp, listing); break;
-                case TYPE_KEYWORD:    doKeywords(fp, listing); break;
-                case TYPE_SYMBOL:     endOfLine = doSymbols(fp, listing); break;
-                case TYPE_OPERATOR:   doOperators(fp, listing); break;
-                case TYPE_MONADIC:    doMonadics(fp, listing); break;
-                case TYPE_NAME:       doNames(fp, listing); break;
-                case TYPE_STRING:     doStrings(fp, listing); break;
-                case TYPE_TEXT:       doText(fp, listing); break;
-                case TYPE_SEPARATOR:  doSeparators(fp, listing); break;
-
-                /* Floats come in three formats, each with 16 leading bytes! */
-                case TYPE_FP_BIN_MIN ... TYPE_FP_BIN_MIN:   
-                case TYPE_FP_HEX_MIN ... TYPE_FP_HEX_MAX:
-                case TYPE_FP_DEC_MIN ... TYPE_FP_DEC_MAX:   
-                                      doFloatingPoint(fp, listing, typeByte); break;
-
-                default: 
-                    offset = ftell(fp);
-                    fprintf(stderr, "\n\nERROR: decodeProgram(): At offset %ld ($%08lx), read byte %d (%c). Out of sync.", offset, offset, typeByte, (typeByte > 31 ? typeByte : '.'));
-                    fclose(listing);
-                    return 1;
-            }
-
-            /* Exit the while loop when we print an end of line character. */
-            if (endOfLine) {
-                fflush(listing);
-                break;
-            }
-        }
     }
 
-    return 0;
+    /*
+     * At this point, we should be looking for either an end of statement 0x8402
+     * or and end of line 0x840a word. In either case we should check for it and
+     * call out to doSymbol() to print the details to the BAS listing and also
+     * to end the line in the C source file.
+     */
+
+    typeByte = fgetc(fp);
+    if (typeByte != 0x84) {
+        fprintf(stderr, "\n\nERROR: parseStatement(): At offset %ld ($%08lx), read byte %d (%c). Out of sync.", offset, offset, typeByte, (typeByte > 31 ? typeByte : '.'));
+        return 1;
+    }
+
+    /*
+     * Fetch the terminator byte then shove it back! 
+     */
+    endOfLine = fgetc(fp);
+    ungetc(endOfLine, fp);
+
+    doSymbols(fp);
+
+    switch (endOfLine) {
+        case 2: return 0; 
+                break;               /* Another statement to process */
+
+        case 10: return endOfLine;
+                 break;              /* End of the current line */
+
+        default: return 1; 
+                 break;             /* Oops! */
+    }
 }
 
-void doMultiSpaces(FILE *fp, FILE *listing){
+
+
+
+void doMultiSpaces(FILE *fp){
     /* 0x80.nn = Print nn spaces */
     uchar nn = fgetc(fp);
     fprintf(listing, "%*.*s", nn, nn, " ");
 }
 
-void doKeywords(FILE *fp, FILE *listing){
+/*=============================================================================
+ * DOKEYWORDS() Call here when a keyword is read from the SAV file. This will
+ * print the appropriate codes to the listing file, and then process the 
+ * keyword into something resembling C68 source code. I hope! 
+ *===========================================================================*/
+void doKeywords(FILE *fp){
     /* 0x81.nn = Print keywords[nn] */
 
     static char *keywords[] = {
@@ -421,27 +484,69 @@ void doKeywords(FILE *fp, FILE *listing){
         "REMAINDER", "DATA", "DIM", "LOCal", "LET", "THEN", "STEP",
         "REMark", "MISTAKE"
     };
+
+    static KWFUNC kwFunctions[] = {
+        keywordNull, //kwEnd, 
+        keywordNull, //kwFor, 
+        keywordNull, //kwIf, 
+        keywordNull, //kwRepeat, 
+        keywordNull, //kwSelect, 
+        keywordNull, //kwWhen, 
+        keywordNull, //kwDefine,
+        keywordNull, //kwProcedure,
+        keywordNull, //kwFunction, 
+        keywordNull, //kwGo, 
+        keywordNull, //kwTt, 
+        keywordNull, //kwSub, 
+        keywordNull, //kwNull_1, 
+        keywordNull, //kwError, 
+        keywordNull, //kwNull_2,
+        keywordNull, //kwNull_3, 
+        keywordNull, //kwRestore, 
+        keywordNull, //kwNext, 
+        keywordNull, //kwExit, 
+        keywordNull, //kwElse, 
+        keywordNull, //kwOn, 
+        keywordNull, //kwReturn,
+        keywordNull, //kwRemainder,
+        keywordNull, //kwData, 
+        keywordNull, //kwDim, 
+        keywordNull, //kwLocal, 
+        keywordNull, //kwLet, 
+        keywordNull, //kwThen, 
+        keywordNull, //kwStep,
+        keywordRemark, //kwRemark, 
+        keywordMistake, //kwMistake
+    };
     
+    /* Read the keyword index, update the listing file, then
+     * call the appropriate helper routine in keywords.c to
+     * do the conversion to C68 source code.
+     */
+    fprintf(stderr, "doKeywords()\n");
     uchar nn = fgetc(fp) -1;
     fprintf(listing, "%s ", keywords[nn]);
+    (kwFunctions[nn])(fp);
 }
 
 
-uchar doSymbols(FILE *fp, FILE *listing){
+void doSymbols(FILE *fp){
     /* 0x84.nn = Print symbols[nn] */
 
     static char *symbols = "=:#,(){} \n";
 
+    fprintf(stderr, "doSymbols()\n");
     uchar nn = fgetc(fp) -1;
 
     fprintf(listing, "%c", symbols[nn]);
 
-    /* Return 1 for end of line. 0 otherwise. */
-    return (nn == 0x09); 
+    /* For EOL, we need to terminate the C code line */
+    if (nn == 9)
+        fprintf(source, "\n");
 }
 
 
-void doOperators(FILE *fp, FILE *listing){
+void doOperators(FILE *fp){
     /* 0x85.nn = Print operators[nn] */
 
     static char *operators[] = {
@@ -450,37 +555,41 @@ void doOperators(FILE *fp, FILE *listing){
         "DIV", "INSTR"
     };
 
+    fprintf(stderr, "doOperators()\n");
     uchar nn = fgetc(fp) -1;
     fprintf(listing, "%s", operators[nn]);
 }
 
 
-void doMonadics(FILE *fp, FILE *listing){
+void doMonadics(FILE *fp){
     /* 0x86.nn = Print monadics[nn] */
 
     static char *monadics[] = {
         "+", "-", "~~", "NOT"
     };
 
+    fprintf(stderr, "doMonadics()\n");
     uchar nn = fgetc(fp) -1;
     fprintf(listing, "%s", monadics[nn]);
 }
 
 
-void doNames(FILE *fp, FILE *listing){
-    /* 0x8800 = Print name[nn] */
+void doNames(FILE *fp){
+    /* 0x8800.0xnnnn = Print name[0xnnnn] */
     uchar nn = fgetc(fp);   /* ignore */
     ushort entry = getWord(fp);
+    fprintf(stderr, "doNames()\n");
     fprintf(listing, "%*.*s", nameTable[entry].nameLength, nameTable[entry].nameLength, nameTable[entry].name);
 }
 
 
-void doStrings(FILE *fp, FILE *listing){
+void doStrings(FILE *fp){
     /* 0x8B.delim.size.bytes.[padding] = Print delimited string */
     uchar delim = fgetc(fp);    /* Delimiter */
     ushort size = getWord(fp);  /* String length */
     ushort x;
 
+    fprintf(stderr, "doStrings()\n");
     fputc(delim, listing);
     for (x = 0; x < size; x++) {
         fputc(fgetc(fp), listing);
@@ -493,23 +602,26 @@ void doStrings(FILE *fp, FILE *listing){
 }
 
 
-void doText(FILE *fp, FILE *listing){
+void doText(FILE *fp){
     /* 0x8C00.size.bytes = Print undelimited text
     */
     uchar ignore = fgetc(fp);    /* 00 byte */
     ushort size = getWord(fp);  /* String length */
     ushort x;
 
+    fprintf(stderr, "doText()\n");
     for (x = 0; x < size; x++) {
-        fputc(fgetc(fp), listing);
+        ignore = fgetc(fp);
+        fputc(ignore, listing);
+        fputc(ignore, source);
     }
 
     if (size & 1)
-        fgetc(fp);              /* Padding */
+        fgetc(fp);              /* Padding byte*/
 }
 
 
-void doSeparators(FILE *fp, FILE *listing){
+void doSeparators(FILE *fp){
     /* 0x8E.nn = Print separators[nn] */
 
     static char *separators[] = {
@@ -517,11 +629,12 @@ void doSeparators(FILE *fp, FILE *listing){
     };
 
     uchar nn = fgetc(fp) -1;
+    fprintf(stderr, "doSeparators()\n");
     fprintf(listing, "%s", separators[nn]);
 }
 
 
-void doFloatingPoint(FILE *fp, FILE *listing, uchar leading){
+void doFloatingPoint(FILE *fp, uchar leading){
     /* Floating points come in three variations:
      * 0xDn = % Binary
      * 0xEn = $ Hexadecimal
@@ -538,6 +651,8 @@ void doFloatingPoint(FILE *fp, FILE *listing, uchar leading){
         QLFLOAT_t buffer;
         ushort sh[3];
     } fpVariable;
+
+    fprintf(stderr, "doFloatingPoints()\n");
 
     /* Print the Float prefix character, if necessary. */
     if (fpType == 0 || fpType == 1) {
@@ -559,7 +674,7 @@ void doFloatingPoint(FILE *fp, FILE *listing, uchar leading){
 #else
 
     /* But the QL is correct endian! */
-    fread(&fpVariable.buffer, 1, sizeof(QLFLOAT_t), fp);    
+    ignore = fread(&fpVariable.buffer, 1, sizeof(QLFLOAT_t), fp);    
     fprintf(listing, "%f", qlfp_to_d(&fpVariable.buffer));
 
 #endif     
@@ -583,12 +698,12 @@ short getWord(FILE *fp) {
 /* I tested on Linux, which is wrong endian! */
 #ifdef QDOS
 
-    fread(&data.val, 1, sizeof(ushort), fp);
+    ignore = fread(&data.val, 1, sizeof(ushort), fp);
 
 #else    
 
-    fread(&data.bytes[1], 1, 1, fp);
-    fread(&data.bytes[0], 1, 1, fp);
+    ignore = fread(&data.bytes[1], 1, 1, fp);
+    ignore = fread(&data.bytes[0], 1, 1, fp);
 
 #endif
 
@@ -689,6 +804,4 @@ void swapExtension(char *savFile, char *newFilename, char *newExtension) {
     strncpy(newFilename, savFile, savSize - 3);
     strncpy(newFilename + savSize - 3, newExtension, extSize);
     newFilename[savSize - 3 + extSize] = '\0';
-
-    printf("'%s' = '%s'\n", savFile, newFilename);
 }
